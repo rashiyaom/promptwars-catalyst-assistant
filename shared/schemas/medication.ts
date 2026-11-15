@@ -4,7 +4,10 @@ import { z } from 'zod';
 export const medicationInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   dosage: z.string().trim().min(1).max(80),
-  times: z.array(z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)).min(1).max(12),
+  times: z
+    .array(z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/))
+    .min(1)
+    .max(12),
   frequency: z.discriminatedUnion('type', [
     z.object({ type: z.literal('daily') }),
     z.object({
