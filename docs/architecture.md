@@ -90,6 +90,31 @@ flowchart TD
 - **Zero Secrets in Source:** API keys are injected via `import.meta.env.VITE_GROQ_API_KEY` or `process.env.GROQ_API_KEY`. Git-ignored `.env` keeps tokens safe.
 - **Offline Mock Fallback:** When `MOCK_MODE=true` or when Groq credentials are absent, deterministic rule-based parsers extract drug names, dosages, and verify sample labels so that automated grading suites always pass with 100% success.
 
+## Geriatric Polypharmacy & Drug-Drug Interaction (DDI) Safety Engine
+
+Sanjeevani incorporates a dedicated clinical pharmacology safety engine (`src/core/drug_interactions.ts`) implementing geriatric Beers Criteria guidelines:
+
+```mermaid
+flowchart TD
+  ActiveMeds[Active Medication Regimen] --> DDIEngine[checkDrugInteractions Engine]
+  DDIEngine --> Rule1{Aspirin + NSAID?}
+  Rule1 -->|Yes| Crit1[Critical: Major GI Bleeding Danger]
+  DDIEngine --> Rule2{Warfarin + Antiplatelet?}
+  Rule2 -->|Yes| Crit2[Critical: Severe Hemorrhage Risk]
+  DDIEngine --> Rule3{Amlodipine + Simvastatin?}
+  Rule3 -->|Yes| Mod1[Moderate: Rhabdomyolysis / Myopathy Risk]
+  DDIEngine --> Rule4{Metformin + Furosemide?}
+  Rule4 -->|Yes| Caut1[Caution: Renal / eGFR Monitoring]
+  DDIEngine --> Rule5{Duplicate Paracetamol?}
+  Rule5 -->|Yes| Crit3[Critical: Hepatotoxicity Overdose]
+  DDIEngine --> Report[DrugInteractionReport]
+  Report --> UIAlert[Medication Timeline Alert Box]
+```
+
+- **Deterministic Evaluation:** Analyzes combinations in O(N^2) across pairwise combinations without external network dependencies.
+- **Clinical Actionability:** Categorizes each alert into `critical`, `moderate`, or `caution` with physician consultation guidance.
+- **100% Offline Testability:** Comprehensive unit tests in `tests/drug_interactions.test.ts` guarantee safety boundaries remain uncompromised.
+
 ## Source layout
 
 - `src/`: typed orchestrator, decision engine, guardrails, session memory, offline tools.

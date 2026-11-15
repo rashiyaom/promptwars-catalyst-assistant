@@ -73,7 +73,140 @@ function SanjeevaniApp(): React.JSX.Element {
     setActiveTab(section);
     window.requestAnimationFrame(() => document.getElementById('workspace')?.focus());
   };
-  const sections: readonly [CareSection, string][] = [['assistant', 'Talk to Taus'], ['medications', 'Medication Schedule'], ['appointments', 'Appointments'], ['pill-check', 'Label Verification']];
+  const sections: readonly [CareSection, string][] = [
+    ['assistant', 'Talk to Taus'],
+    ['medications', 'Medication Schedule'],
+    ['appointments', 'Appointments'],
+    ['pill-check', 'Label Verification'],
+  ];
+
+  const renderMainContent = (): React.JSX.Element => {
+    if (activeTab === 'home') {
+      return <HomePage onOpen={openSection} onCircle={() => navigate('account')} />;
+    }
+    if (!authReady) {
+      return <p role="status" className="page-shell">{t('Loading care profile…')}</p>;
+    }
+    if (!authenticated || activeTab === 'login') {
+      return <AuthPage />;
+    }
+    if (activeTab === 'connect') {
+      return <ConnectAccountPage />;
+    }
+    if (activeTab === 'account' || (!activeProfile.id && !loading)) {
+      return <AccountPage />;
+    }
+    if (!activeProfile.id) {
+      return <p role="status" className="page-shell">{t('Loading care profile…')}</p>;
+    }
+    return (
+      <div className="page-shell" id="workspace" tabIndex={-1}>
+        <div className="workspace-heading">
+          <div>
+            <p className="eyebrow">{t('Simple routines. Shared peace of mind.')}</p>
+            <h1>{t('Your care space')}</h1>
+          </div>
+          <div className="action-row">
+            <button className="chip" onClick={toggleElderMode} aria-pressed={isElderMode}>
+              {t(isElderMode ? 'Large text on' : 'Large text')}
+            </button>
+            <button className="chip" onClick={() => navigate('account')}>
+              {t('Care Circle')} ↗
+            </button>
+            <label className="role-badge" htmlFor="role-select">
+              {t(isDemo ? 'Demo role:' : 'Role:')}
+              <select
+                id="role-select"
+                value={role}
+                disabled={!isDemo}
+                onChange={(e) => setRole(e.target.value as MemberRole)}
+              >
+                {(['elder', 'caretaker', 'family', 'doctor'] as const).map((value) => (
+                  <option key={value} value={value}>{t(value)}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <AuthBanner />
+
+        <nav className="nav-tabs" aria-label={t('Care Sections')}>
+          {sections.map(([section, label]) => (
+            <button
+              key={section}
+              className={`tab-button ${activeTab === section ? 'active' : ''}`}
+              onClick={() => setActiveTab(section)}
+              aria-pressed={activeTab === section}
+            >
+              {t(label)}
+              {section === 'medications' && ` (${adherenceScore.taken}/${adherenceScore.total})`}
+              {section === 'appointments' && ` (${appointments.length})`}
+            </button>
+          ))}
+        </nav>
+
+        {activeTab === 'assistant' && (
+          <>
+            <TavusConversation key={`video:${activeProfile.id}:${language}`} />
+            <TausAgent key={`${activeProfile.id}:${role}`} onEmergency={() => setShowSosAlert(true)} />
+          </>
+        )}
+
+        {activeTab === 'medications' && (
+          <section className="card" aria-labelledby="med-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="med-title" className="card-title">{t('Daily Medication Routine')}</h2>
+                <p className="card-subtitle">
+                  {t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> · {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}
+                </p>
+              </div>
+              <div className="action-row">
+                <button className="chip" onClick={handleReadScheduleAloud}>{t('Listen Aloud')}</button>
+                {canManageMedication && (
+                  <>
+                    <button className="chip" onClick={() => { setIntakeInitialMode('photo'); setIsIntakeModalOpen(true); }}>
+                      📷 {t('Scan Prescription')}
+                    </button>
+                    <button className="chip" onClick={() => { setIntakeInitialMode('voice'); setIsIntakeModalOpen(true); }}>
+                      🎙️ {t('Speak Prescription')}
+                    </button>
+                    <button className="send-button" onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}>
+                      + {t('Add Medication')}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            <MedicationTimeline key={activeProfile.id} onEdit={(med) => { setEditingMedication(med); setIsMedModalOpen(true); }} />
+          </section>
+        )}
+
+        {activeTab === 'appointments' && (
+          <section className="card" aria-labelledby="appt-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="appt-title" className="card-title">{t('Upcoming Appointments')}</h2>
+                <p className="card-subtitle">{t('Care-circle appointments and specialist clinic checkups.')}</p>
+              </div>
+              <button className="send-button" disabled={!canEdit} onClick={() => setIsApptModalOpen(true)}>
+                + {t('Schedule Appointment')}
+              </button>
+            </div>
+            {!appointments.length && (
+              <p className="empty-state">{t('No appointments yet. Schedule a visit to start preparing.')}</p>
+            )}
+            {appointments.map((item) => (
+              <AppointmentCard key={`${activeProfile.id}:${item.id}`} appointment={item} />
+            ))}
+          </section>
+        )}
+
+        {activeTab === 'pill-check' && <PillLabelVerification key={activeProfile.id} />}
+      </div>
+    );
+  };
 
   return <div className={isElderMode ? 'elder-mode-root' : ''}>
     <a className="skip-link" href="#main">{t('Skip to care content')}</a>
@@ -84,15 +217,7 @@ function SanjeevaniApp(): React.JSX.Element {
       <div className="header-controls"><div className="language-switch" role="group" aria-label="Language / भाषा"><button lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button><button lang="hi" aria-pressed={language === 'hi'} onClick={() => setLanguage('hi')}>हिन्दी</button></div><button className="header-account" onClick={() => navigate(authenticated ? 'account' : 'login')}>{authenticated ? t('Account') : t('Sign in')} <span aria-hidden="true">↗</span></button><button className="sos-button" onClick={() => setShowSosAlert(true)}>{t('SOS · Emergency help')}</button></div>
     </header>
     <main id="main" tabIndex={-1}>
-      {activeTab === 'home' ? <HomePage onOpen={openSection} onCircle={() => navigate('account')} /> : !authReady ? <p role="status" className="page-shell">{t('Loading care profile…')}</p> : !authenticated || activeTab === 'login' ? <AuthPage /> : activeTab === 'connect' ? <ConnectAccountPage /> : activeTab === 'account' || (!activeProfile.id && !loading) ? <AccountPage /> : !activeProfile.id ? <p role="status" className="page-shell">{t('Loading care profile…')}</p> : <div className="page-shell" id="workspace" tabIndex={-1}>
-        <div className="workspace-heading"><div><p className="eyebrow">{t('Simple routines. Shared peace of mind.')}</p><h1>{t('Your care space')}</h1></div><div className="action-row"><button className="chip" onClick={toggleElderMode} aria-pressed={isElderMode}>{t(isElderMode ? 'Large text on' : 'Large text')}</button><button className="chip" onClick={() => navigate('account')}>{t('Care Circle')} ↗</button><label className="role-badge" htmlFor="role-select">{t(isDemo ? 'Demo role:' : 'Role:')}<select id="role-select" value={role} disabled={!isDemo} onChange={(e) => setRole(e.target.value as MemberRole)}>{(['elder', 'caretaker', 'family', 'doctor'] as const).map((value) => <option key={value} value={value}>{t(value)}</option>)}</select></label></div></div>
-        <AuthBanner />
-        <nav className="nav-tabs" aria-label={t('Care Sections')}>{sections.map(([section, label]) => <button key={section} className={`tab-button ${activeTab === section ? 'active' : ''}`} onClick={() => setActiveTab(section)} aria-pressed={activeTab === section}>{t(label)}{section === 'medications' && ` (${adherenceScore.taken}/${adherenceScore.total})`}{section === 'appointments' && ` (${appointments.length})`}</button>)}</nav>
-        {activeTab === 'assistant' && <><TavusConversation key={`video:${activeProfile.id}:${language}`} /><TausAgent key={`${activeProfile.id}:${role}`} onEmergency={() => setShowSosAlert(true)} /></>}
-        {activeTab === 'medications' && <section className="card" aria-labelledby="med-title"><div className="section-heading"><div><h2 id="med-title" className="card-title">{t('Daily Medication Routine')}</h2><p className="card-subtitle">{t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> · {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}</p></div><div className="action-row"><button className="chip" onClick={handleReadScheduleAloud}>{t('Listen Aloud')}</button>{canManageMedication && <><button className="chip" onClick={() => { setIntakeInitialMode('photo'); setIsIntakeModalOpen(true); }}>📷 {t('Scan Prescription')}</button><button className="chip" onClick={() => { setIntakeInitialMode('voice'); setIsIntakeModalOpen(true); }}>🎙️ {t('Speak Prescription')}</button><button className="send-button" onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}>+ {t('Add Medication')}</button></>}</div></div><MedicationTimeline key={activeProfile.id} onEdit={(med) => { setEditingMedication(med); setIsMedModalOpen(true); }} /></section>}
-        {activeTab === 'appointments' && <section className="card" aria-labelledby="appt-title"><div className="section-heading"><div><h2 id="appt-title" className="card-title">{t('Upcoming Appointments')}</h2><p className="card-subtitle">{t('Care-circle appointments and specialist clinic checkups.')}</p></div><button className="send-button" disabled={!canEdit} onClick={() => setIsApptModalOpen(true)}>+ {t('Schedule Appointment')}</button></div>{!appointments.length && <p className="empty-state">{t('No appointments yet. Schedule a visit to start preparing.')}</p>}{appointments.map((item) => <AppointmentCard key={`${activeProfile.id}:${item.id}`} appointment={item} />)}</section>}
-        {activeTab === 'pill-check' && <PillLabelVerification key={activeProfile.id} />}
-      </div>}
+      {renderMainContent()}
     </main>
     <footer className="site-footer"><div className="footer-top"><a className="brand" href="#main" onClick={() => setActiveTab('home')}><span className="brand-mark" aria-hidden="true">✚</span>{t('Sanjeevani')}</a><p>{t('Care, with people at its heart.')}</p><button className="text-button" onClick={() => navigate('account')}>{t('Care Circle')} ↗</button></div><p className="privacy-note"><strong>{t('Safety Notice:')}</strong> {t('Sanjeevani supports care coordination. It does not diagnose, prescribe, or replace professional medical advice. In an emergency, contact your local emergency services (112 / 911).')}</p><div className="footer-bottom"><span>{t('Built with care. Designed to be simple.')}</span><span>English / हिन्दी</span></div></footer>
     {isMedModalOpen && <MedicationModal medication={editingMedication} onClose={() => setIsMedModalOpen(false)} />}

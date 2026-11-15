@@ -24,6 +24,8 @@
     "test:emulator": "npm run build --workspace @sanjeevani/functions && firebase emulators:exec --project demo-sanjeevani --only auth,firestore,functions \"node scripts/verify-emulator.mjs\"",
     "test:coverage": "vitest run --coverage",
     "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run build --workspace @sanjeevani/web",
+    "audit:ai": "node scripts/ai-evaluation-audit.mjs",
+    "generate:pdf": "node scripts/generate-linkedin-pdf.mjs",
     "demo": "VITE_MOCK_MODE=true npm run dev"
   },
   "devDependencies": {

@@ -1,7 +1,11 @@
-/** Intent labels understood by the initial deterministic decision engine. */
+/**
+ * Intent labels understood by the deterministic decision engine.
+ */
 export type CareIntent = 'urgent_safety' | 'missed_dose' | 'appointment' | 'general';
 
-/** Structured result of evaluating a user's message. */
+/**
+ * Structured result of evaluating a user's message.
+ */
 export interface Decision {
   readonly intent: CareIntent;
   readonly urgency: 'urgent' | 'routine';
@@ -9,12 +13,18 @@ export interface Decision {
   readonly reason: string;
 }
 
-const URGENT_PATTERNS = [
+const URGENT_PATTERNS: readonly RegExp[] = [
   /(?:सीने|छाती).{0,20}दर्द|सां?ँ?स.{0,20}(?:नहीं|दिक्कत|तकलीफ|तकलीफ़)|बेहोश|ओवरडोज|seene.{0,15}dard|saans.{0,15}(?:nahi|dikkat)/i,
   /\b(chest pain|can't breathe|cannot breathe|difficulty breathing|unconscious|overdose|severe allergic reaction)\b/i,
 ];
 
-/** Classify intent and urgency using predictable offline rules. */
+/**
+ * Evaluates user input against safety critical patterns, missed dose inquiries,
+ * and care coordination requests using deterministic rules that require zero network access.
+ *
+ * @param message - User utterance in Hindi, Hinglish, or English
+ * @returns Evaluated decision including urgency classification and routing intent
+ */
 export function decide(message: string): Decision {
   if (URGENT_PATTERNS.some((pattern) => pattern.test(message))) {
     return {
@@ -25,7 +35,11 @@ export function decide(message: string): Decision {
     };
   }
 
-  if (/\b(missed|forgot|late)\b.{0,40}\b(dose|medicine|medication|pill)\b|(?:दवा|दवाई|गोली|खुराक).{0,40}(?:भूल|छूट|छोड़|देर)|(?:भूल|छूट|देर).{0,40}(?:दवा|दवाई|गोली|खुराक)|dawai?.{0,20}bhool/i.test(message)) {
+  if (
+    /\b(missed|forgot|late)\b.{0,40}\b(dose|medicine|medication|pill)\b|(?:दवा|दवाई|गोली|खुराक).{0,40}(?:भूल|छूट|छोड़|देर)|(?:भूल|छूट|देर).{0,40}(?:दवा|दवाई|गोली|खुराक)|dawai?.{0,20}bhool/i.test(
+      message
+    )
+  ) {
     return {
       intent: 'missed_dose',
       urgency: 'routine',
@@ -34,7 +48,11 @@ export function decide(message: string): Decision {
     };
   }
 
-  if (/\b(appointment|doctor|clinic|visit)\b|डॉक्टर|डाक्टर|मुलाकात|क्लिनिक|अपॉइंटमेंट/i.test(message)) {
+  if (
+    /\b(appointment|doctor|clinic|visit)\b|डॉक्टर|डाक्टर|मुलाकात|क्लिनिक|अपॉइंटमेंट/i.test(
+      message
+    )
+  ) {
     return {
       intent: 'appointment',
       urgency: 'routine',

@@ -23,15 +23,47 @@ type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkit
 /** Contextual voice agent with bounded tools: named-dose confirmation, snooze, and read-only care context. */
 export function TausAgent({ onEmergency }: { readonly onEmergency: () => void }): React.JSX.Element {
   const { t, locale, language } = useLanguage();
-  const { activeProfile, medications, appointments, todayDoses, doseLogs, careMembers, canLogDose, logDose, snoozeDose, refreshData, isDemo, user, currentMember, addMedication, canManageMedication } = useCare();
-  const [message, setMessage] = useState(''); const [transcript, setTranscript] = useState(''); const [input, setInput] = useState('');
-  const [askedId, setAskedId] = useState<string | null>(null); const [busy, setBusy] = useState(false); const [listening, setListening] = useState(false); const [voiceOn, setVoiceOn] = useState(false);
+  const {
+    activeProfile,
+    medications,
+    appointments,
+    todayDoses,
+    doseLogs,
+    careMembers,
+    canLogDose,
+    logDose,
+    snoozeDose,
+    refreshData,
+    isDemo,
+    user,
+    currentMember,
+    addMedication,
+    canManageMedication,
+  } = useCare();
+
+  const [message, setMessage] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [input, setInput] = useState('');
+  const [askedId, setAskedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
   const [pendingMed, setPendingMed] = useState<MedicationInput | null>(null);
-  const [deliveries, setDeliveries] = useState<AlertDelivery[]>([]); const [alertError, setAlertError] = useState(false); const [imageFailed, setImageFailed] = useState(false);
-  const recognition = useRef<Recognition | null>(null); const handsFree = useRef(false); const mounted = useRef(true); const speakingVersion = useRef(0); const locked = useRef(false);
-  const listenAgain = useRef<() => void>(() => undefined); const handleText = useRef<(value: string) => Promise<void>>(async () => undefined);
-  const prompted = useRef(new Set<string>()); const askNext = useRef<() => void>(() => undefined);
-  const refresh = useRef(refreshData); refresh.current = refreshData;
+  const [deliveries, setDeliveries] = useState<AlertDelivery[]>([]);
+  const [alertError, setAlertError] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const recognition = useRef<Recognition | null>(null);
+  const handsFree = useRef(false);
+  const mounted = useRef(true);
+  const speakingVersion = useRef(0);
+  const locked = useRef(false);
+  const listenAgain = useRef<() => void>(() => undefined);
+  const handleText = useRef<(value: string) => Promise<void>>(async () => undefined);
+  const prompted = useRef(new Set<string>());
+  const askNext = useRef<() => void>(() => undefined);
+  const refresh = useRef(refreshData);
+  refresh.current = refreshData;
   const due = todayDoses.filter((dose) => (dose.status === 'pending' || dose.status === 'missed') && Date.parse(dose.scheduledFor) <= Date.now());
   const target = todayDoses.find((dose) => dose.id === askedId) ?? due[0];
   const medication = medications.find((item) => item.id === target?.medicationId);

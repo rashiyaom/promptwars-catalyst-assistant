@@ -2,6 +2,7 @@ import { FREE_PLAN } from '../../lib/plan.js';
 import { useLanguage } from '../../i18n/LanguageContext.js';
 import React, { useState } from 'react';
 import type { Medication } from '@sanjeevani/shared/types/medication';
+import { checkDrugInteractions } from '@sanjeevani/core';
 import { useCare } from '../../context/CareContext.js';
 import { DAY_PERIODS, adherenceWeek, dayPeriod, localDate } from '../../features/medications/schedule.js';
 
@@ -14,6 +15,7 @@ export function MedicationTimeline({ onEdit }: { readonly onEdit: (medication: M
   const [error, setError] = useState('');
   const history = [...doseLogs.filter((log) => localDate(new Date(log.scheduledFor), activeProfile.timezone) !== today), ...todayDoses];
   const week = adherenceWeek(history, today, activeProfile.timezone);
+  const interactionReport = checkDrugInteractions(medications.filter((m) => m.active));
   const perform = async (id: string, action: () => Promise<void>, message: string) => {
     setBusy(id); setError(''); setFeedback('');
     try { await action(); setFeedback(message); }
@@ -21,6 +23,25 @@ export function MedicationTimeline({ onEdit }: { readonly onEdit: (medication: M
     finally { setBusy(null); }
   };
   return <>
+    {interactionReport.hasInteractions && (
+      <div className={`interaction-alert-box ${interactionReport.hasCritical ? 'critical' : 'moderate'}`} role="alert">
+        <div className="alert-header">
+          <span className="alert-icon" aria-hidden="true">{interactionReport.hasCritical ? '🚨' : '⚠️'}</span>
+          <div>
+            <h3>{t('Elderly Medication Safety Notice ({0} Interaction Detected)', String(interactionReport.interactions.length))}</h3>
+            <p className="small-note">{t('Checked against clinical geriatric polypharmacy guidelines.')}</p>
+          </div>
+        </div>
+        <ul className="interaction-list">
+          {interactionReport.interactions.map((item, idx) => (
+            <li key={idx} className="interaction-item">
+              <strong>{item.drugs.join(' + ')}:</strong> {item.description}
+              <p className="clinical-guidance">💡 {item.clinicalGuidance}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
     <section className="adherence-panel" aria-labelledby="week-title">
       <h2 id="week-title">{t("Your last 7 days")}</h2>
       <p>{isDemo ? t("Sample history · changes last for this session.") : t("Recorded dose history.")} {t("Times shown in")} {activeProfile.timezone}.</p>

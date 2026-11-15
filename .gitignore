@@ -40,6 +40,7 @@ functions/.secret.local
 *.png
 *.webp
 *.gif
+*.pdf
 
 # Environment variables & secrets (CRITICAL: Do not commit secrets)
 .env

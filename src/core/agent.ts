@@ -6,7 +6,9 @@ import { SessionMemory } from './memory.js';
 import { MockAssistantTool } from '../tools/mock_tools.js';
 import { agentRequestSchema, type AgentRequest } from '../models/schemas.js';
 
-/** Structured result returned by one agent turn. */
+/**
+ * Structured response returned by an agent conversation turn.
+ */
 export interface AgentResponse {
   readonly success: boolean;
   readonly message: string;
@@ -18,23 +20,47 @@ export interface AgentResponse {
 const memory = new SessionMemory();
 const mockTool = new MockAssistantTool();
 
-/** Run validation, deterministic decision-making, offline response, and redaction. */
+/**
+ * Executes a single conversational agent turn with strict input validation,
+ * deterministic urgency classification, offline response synthesis,
+ * and PII output redaction.
+ *
+ * @param request - Agent request containing sessionId and user message
+ * @returns Sanitized and evaluated agent response
+ */
 export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
   const parsed = agentRequestSchema.safeParse(request);
-  if (!parsed.success) return { success: false, message: 'Please rephrase your message and try again.', error: { code: 'INPUT_REJECTED', message: 'Invalid session or message.' } };
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: 'Please rephrase your message and try again.',
+      error: { code: 'INPUT_REJECTED', message: 'Invalid session or message.' },
+    };
+  }
+
   const validation = validateInput(parsed.data.message);
   if (!validation.accepted) {
     return {
       success: false,
       message: 'Please rephrase your message and try again.',
-      error: { code: 'INPUT_REJECTED', message: validation.reason ?? 'Input was rejected.' },
+      error: {
+        code: 'INPUT_REJECTED',
+        message: validation.reason ?? 'Input was rejected.',
+      },
     };
   }
 
   try {
     const decision = decide(validation.sanitized);
-    memory.add(request.sessionId, validation.sanitized, loadConfig().maxSessionMessages);
-    const response = await mockTool.respond({ intent: decision.intent, message: validation.sanitized });
+    memory.add(
+      request.sessionId,
+      validation.sanitized,
+      loadConfig().maxSessionMessages
+    );
+    const response = await mockTool.respond({
+      intent: decision.intent,
+      message: validation.sanitized,
+    });
     return {
       success: true,
       message: redactPersonalInformation(response),
@@ -44,8 +70,12 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
   } catch {
     return {
       success: false,
-      message: 'Sanjeevani could not process that request. Please try again or contact your care circle.',
-      error: { code: 'AGENT_FAILURE', message: 'The assistant encountered an unexpected error.' },
+      message:
+        'Sanjeevani could not process that request. Please try again or contact your care circle.',
+      error: {
+        code: 'AGENT_FAILURE',
+        message: 'The assistant encountered an unexpected error.',
+      },
     };
   }
 }

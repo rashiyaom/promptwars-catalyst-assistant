@@ -723,3 +723,14 @@ summary { cursor: pointer; padding-block: 12px; font-weight: 600; }summary:focus
 .result-message { font-size: 15px; margin: 0; line-height: 1.5; }
 .result-details { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(0,0,0,0.1); font-size: 14px; }
 .result-details p { margin: 4px 0; }
+
+/* Geriatric Polypharmacy & Drug Interaction Alerts */
+.interaction-alert-box { border-radius: 14px; padding: 18px; margin-bottom: 24px; border: 2px solid; }
+.interaction-alert-box.critical { background: #fff4f2; border-color: #c62828; }
+.interaction-alert-box.moderate { background: #fffcf0; border-color: #f57f17; }
+.alert-header { display: flex; align-items: flex-start; gap: 14px; }
+.alert-icon { font-size: 28px; line-height: 1; }
+.alert-header h3 { margin: 0 0 4px; font-size: 18px; }
+.interaction-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.interaction-item { font-size: 14px; line-height: 1.5; padding: 8px 12px; background: rgba(0,0,0,0.03); border-radius: 8px; }
+.clinical-guidance { margin: 4px 0 0; color: #555; font-size: 13px; font-weight: 500; }
