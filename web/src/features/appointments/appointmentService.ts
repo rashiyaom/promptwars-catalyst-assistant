@@ -1,10 +1,13 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   getDocs,
   orderBy,
   query,
   Timestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import type { Appointment } from '@sanjeevani/shared/types/appointment';
 import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
@@ -46,4 +49,30 @@ export async function listAppointments(profileId: string): Promise<Appointment[]
       notes: String(data.notes ?? ''),
     };
   });
+}
+
+/** Update an existing appointment. */
+export async function updateAppointment(
+  profileId: string,
+  appointmentId: string,
+  input: AppointmentInput,
+): Promise<void> {
+  const clients = getFirebaseClients();
+  if (!clients) throw new Error('Appointment update is unavailable in offline demo mode.');
+  const parsed = appointmentInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Check the appointment details.');
+  await updateDoc(doc(clients.db, 'profiles', profileId, 'appointments', appointmentId), {
+    doctorName: parsed.data.doctorName,
+    specialty: parsed.data.specialty,
+    dateTime: Timestamp.fromDate(new Date(parsed.data.dateTime)),
+    location: parsed.data.location,
+    notes: parsed.data.notes,
+  });
+}
+
+/** Delete an appointment. */
+export async function deleteAppointment(profileId: string, appointmentId: string): Promise<void> {
+  const clients = getFirebaseClients();
+  if (!clients) throw new Error('Appointment deletion is unavailable in offline demo mode.');
+  await deleteDoc(doc(clients.db, 'profiles', profileId, 'appointments', appointmentId));
 }

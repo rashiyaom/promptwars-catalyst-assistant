@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   orderBy,
@@ -77,4 +78,30 @@ export async function logDose(
     doc(reference, doseLogId),
     { status, loggedBy: memberId, loggedAt: Timestamp.now() },
   );
+}
+
+/** Update an existing medication schedule. */
+export async function updateMedication(
+  profileId: string,
+  medicationId: string,
+  input: MedicationInput,
+): Promise<void> {
+  const clients = getFirebaseClients();
+  if (!clients) throw new Error('Medication update is unavailable in offline demo mode.');
+  const parsed = medicationInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Check the medication details.');
+  const memberId = clients.auth.currentUser?.uid;
+  if (!memberId) throw new Error('Sign in to update medication.');
+  await updateDoc(doc(clients.db, 'profiles', profileId, 'medications', medicationId), {
+    ...parsed.data,
+    updatedBy: memberId,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+/** Delete a medication schedule from the profile. */
+export async function deleteMedication(profileId: string, medicationId: string): Promise<void> {
+  const clients = getFirebaseClients();
+  if (!clients) throw new Error('Medication deletion is unavailable in offline demo mode.');
+  await deleteDoc(doc(clients.db, 'profiles', profileId, 'medications', medicationId));
 }

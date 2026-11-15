@@ -1,10 +1,12 @@
 import {
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  type User,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { getFirebaseClients } from '../../lib/firebase.js';
@@ -45,6 +47,16 @@ export async function signOutMember(): Promise<void> {
   const clients = getFirebaseClients();
   if (!clients) return;
   await signOut(clients.auth);
+}
+
+/** Subscribe to authentication state changes. */
+export function subscribeToAuth(callback: (user: User | null) => void): () => void {
+  const clients = getFirebaseClients();
+  if (!clients) {
+    callback(null);
+    return () => undefined;
+  }
+  return onAuthStateChanged(clients.auth, callback);
 }
 
 /** Create an elder-owned profile and store role codes as server-side hashes. */
