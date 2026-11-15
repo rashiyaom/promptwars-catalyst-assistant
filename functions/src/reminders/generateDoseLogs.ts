@@ -131,6 +131,7 @@ async function createDoseLog(
       loggedAt: null,
       reminderSentAt: null,
       missedAlertSentAt: null,
+      escalationProcessedAt: null,
       createdAt: FieldValue.serverTimestamp(),
     });
     return true;

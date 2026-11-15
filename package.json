@@ -20,7 +20,8 @@
     "deploy:hosting": "npm run build --workspace @sanjeevani/web && firebase deploy --only hosting",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:emulator": "npm run build --workspace @sanjeevani/functions && firebase emulators:exec --project demo-sanjeevani --only auth,firestore,functions \"node scripts/verify-emulator.mjs\""
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

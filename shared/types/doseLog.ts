@@ -10,5 +10,7 @@ export interface DoseLog {
   readonly loggedBy: string | null;
   readonly loggedAt: string | null;
   readonly reminderSentAt: string | null;
+  readonly nextReminderAt?: string | null;
+  readonly snoozeCount?: number;
   readonly missedAlertSentAt: string | null;
 }

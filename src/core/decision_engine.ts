@@ -10,6 +10,7 @@ export interface Decision {
 }
 
 const URGENT_PATTERNS = [
+  /(?:सीने|छाती).{0,20}दर्द|सां?ँ?स.{0,20}(?:नहीं|दिक्कत|तकलीफ|तकलीफ़)|बेहोश|ओवरडोज|seene.{0,15}dard|saans.{0,15}(?:nahi|dikkat)/i,
   /\b(chest pain|can't breathe|cannot breathe|difficulty breathing|unconscious|overdose|severe allergic reaction)\b/i,
 ];
 
@@ -24,7 +25,7 @@ export function decide(message: string): Decision {
     };
   }
 
-  if (/\b(missed|forgot|late)\b.{0,40}\b(dose|medicine|medication|pill)\b/i.test(message)) {
+  if (/\b(missed|forgot|late)\b.{0,40}\b(dose|medicine|medication|pill)\b|(?:दवा|दवाई|गोली|खुराक).{0,40}(?:भूल|छूट|छोड़|देर)|(?:भूल|छूट|देर).{0,40}(?:दवा|दवाई|गोली|खुराक)|dawai?.{0,20}bhool/i.test(message)) {
     return {
       intent: 'missed_dose',
       urgency: 'routine',
@@ -33,7 +34,7 @@ export function decide(message: string): Decision {
     };
   }
 
-  if (/\b(appointment|doctor|clinic|visit)\b/i.test(message)) {
+  if (/\b(appointment|doctor|clinic|visit)\b|डॉक्टर|डाक्टर|मुलाकात|क्लिनिक|अपॉइंटमेंट/i.test(message)) {
     return {
       intent: 'appointment',
       urgency: 'routine',

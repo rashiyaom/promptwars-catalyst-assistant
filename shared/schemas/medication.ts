@@ -20,6 +20,7 @@ export const medicationInputSchema = z.object({
   endDate: z.iso.date().nullable(),
   notes: z.string().max(500),
   active: z.boolean(),
+  imageUrl: z.union([z.literal(''), z.url({ protocol: /^https$/ }).max(2048)]).optional(),
 });
 
 /** Type inferred from the validated medication input schema. */

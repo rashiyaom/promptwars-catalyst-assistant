@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
-  onAuthStateChanged,
+  onIdTokenChanged,
+  reload,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -16,10 +17,8 @@ export async function signInMember(email: string, password: string): Promise<voi
   const clients = getFirebaseClients();
   if (!clients) throw new Error('Sign-in is unavailable in offline demo mode.');
   const credential = await signInWithEmailAndPassword(clients.auth, email.trim(), password);
-  if (!credential.user.emailVerified) {
-    await signOut(clients.auth);
-    throw new Error('Verify your email address before signing in. Check your inbox for the verification link.');
-  }
+  // Unverified accounts stay signed in only to resend/complete email verification.
+  if (credential.user.emailVerified) await ensureCareAccount();
 }
 
 /** Create a Firebase Authentication account for a new care-circle member. */
@@ -56,34 +55,28 @@ export function subscribeToAuth(callback: (user: User | null) => void): () => vo
     callback(null);
     return () => undefined;
   }
-  return onAuthStateChanged(clients.auth, callback);
+  return onIdTokenChanged(clients.auth, callback);
 }
 
-/** Create an elder-owned profile and store role codes as server-side hashes. */
-export async function createCareProfile(input: {
-  readonly elderName: string;
-  readonly displayName: string;
-  readonly timezone: string;
-  readonly elderPasscode: string;
-  readonly caretakerPasscode: string;
-  readonly familyPasscode: string;
-}): Promise<{ readonly profileId: string }> {
+/** Synchronize a verified account without assigning any profile role. */
+export async function ensureCareAccount(): Promise<void> {
   const clients = getFirebaseClients();
-  if (!clients) throw new Error('Profile creation is unavailable in offline demo mode.');
-  const callable = httpsCallable<typeof input, { profileId: string }>(clients.functions, 'createCareProfile');
-  const result = await callable(input);
-  return result.data;
+  if (!clients) return;
+  await httpsCallable(clients.functions, 'ensureCareAccount')({});
 }
 
-/** Join an existing profile using a role passcode verified by a callable function. */
-export async function joinCareProfile(input: {
-  readonly profileId: string;
-  readonly passcode: string;
-  readonly displayName: string;
-}): Promise<{ readonly role: 'elder' | 'caretaker' | 'family' }> {
-  const clients = getFirebaseClients();
-  if (!clients) throw new Error('Joining a profile is unavailable in offline demo mode.');
-  const callable = httpsCallable<typeof input, { role: 'elder' | 'caretaker' | 'family' }>(clients.functions, 'joinCareProfile');
-  const result = await callable(input);
-  return result.data;
+export async function resendVerification(): Promise<void> {
+  const user = getFirebaseClients()?.auth.currentUser;
+  if (!user) throw new Error('Sign in first.');
+  await sendEmailVerification(user);
+}
+
+/** Refresh both user state and token claims after following the email link. */
+export async function refreshVerification(): Promise<boolean> {
+  const user = getFirebaseClients()?.auth.currentUser;
+  if (!user) return false;
+  await reload(user);
+  await user.getIdToken(true);
+  if (user.emailVerified) await ensureCareAccount();
+  return user.emailVerified;
 }

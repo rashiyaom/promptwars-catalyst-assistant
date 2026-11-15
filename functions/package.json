@@ -15,7 +15,6 @@
     "bcryptjs": "^3.0.3",
     "firebase-admin": "^14.5.1",
     "firebase-functions": "^7.4.0",
-    "resend": "^6.38.1",
     "zod": "^4.6.7"
   }
 }

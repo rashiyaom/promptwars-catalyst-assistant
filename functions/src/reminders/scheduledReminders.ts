@@ -1,21 +1,20 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import {
   FieldValue,
+  FieldPath,
   Timestamp,
   getFirestore,
   type DocumentReference,
   type DocumentSnapshot,
 } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
-import { Resend } from 'resend';
-import { defineSecret } from 'firebase-functions/params';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { deliverEscalation } from './escalationDelivery.js';
 import { loadFunctionConfig } from '../config.js';
 import { logInfo } from '../lib/logger.js';
 
 const adminApp = getApps()[0] ?? initializeApp();
 const database = getFirestore(adminApp);
-const resendApiKey = defineSecret('RESEND_API_KEY');
 const REMINDER_SCHEDULE = 'every 5 minutes';
 const REMINDER_WINDOW_MS = 15 * 60 * 1000;
 const APPOINTMENT_DAY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -119,21 +118,9 @@ async function deliverReminder(
   }
 
   try {
-    const sender = loadFunctionConfig().emailFrom;
-    const key = resendApiKey.value();
-    if (!sender || !key) throw new Error('Email delivery configuration is missing.');
-    const resend = new Resend(key);
     const messaging = getMessaging(adminApp);
 
     for (const recipient of recipients) {
-      const emailResult = await resend.emails.send({
-        from: sender,
-        to: [recipient.email],
-        subject: 'Sanjeevani care reminder',
-        text: 'You have a care-circle reminder. Sign in to Sanjeevani to review it.',
-      }, { idempotencyKey: `sanjeevani/${kind}/${eventId}/${recipient.uid}` });
-      if (emailResult.error) throw new Error('Email provider rejected a reminder.');
-
       const tokenSnapshot = await profileReference
         .collection('members').doc(recipient.uid)
         .collection('private').doc('notifications')
@@ -209,21 +196,35 @@ async function markDoseMissed(
   });
 }
 
+/** Persist a sweep cursor so unconfigured profiles cannot starve later doses.
+ * Scanning by status also includes legacy logs without escalationProcessedAt.
+ */
+async function dosePage(status: 'pending' | 'missed', before: Timestamp) {
+  const cursorRef = database.doc(`internal/reminder-cursor-${status}`);
+  const cursor = await cursorRef.get();
+  let query = database.collectionGroup('doseLogs').where('status', '==', status)
+    .where('scheduledFor', '<=', before).orderBy('scheduledFor').orderBy(FieldPath.documentId()).limit(MAX_DOSES_PER_SWEEP);
+  if (cursor.get('scheduledFor') instanceof Timestamp && typeof cursor.get('path') === 'string') {
+    query = query.startAfter(cursor.get('scheduledFor'), database.doc(cursor.get('path')));
+  }
+  const page = await query.get();
+  return { page, advance: async () => {
+    const last = page.docs.at(-1);
+    await cursorRef.set(last && page.size === MAX_DOSES_PER_SWEEP ? { scheduledFor: last.get('scheduledFor'), path: last.ref.path } : { scheduledFor: null, path: null });
+  } };
+}
+
 /** Run email and push reminders for due doses and near-term appointments. */
 export const sendScheduledCareReminders = onSchedule({
   schedule: REMINDER_SCHEDULE,
   timeZone: 'Etc/UTC',
   region: 'us-central1',
   maxInstances: 1,
-  secrets: [resendApiKey],
 }, async () => {
   const now = Date.now();
   const upcomingLimit = Timestamp.fromMillis(now + REMINDER_WINDOW_MS);
-  const pendingDoses = await database.collectionGroup('doseLogs')
-    .where('status', '==', 'pending')
-    .where('scheduledFor', '<=', upcomingLimit)
-    .limit(MAX_DOSES_PER_SWEEP)
-    .get();
+  const pending = await dosePage('pending', upcomingLimit);
+  const pendingDoses = pending.page;
 
   for (const doseSnapshot of pendingDoses.docs) {
     const doseReference = doseSnapshot.ref;
@@ -231,11 +232,30 @@ export const sendScheduledCareReminders = onSchedule({
     const scheduledFor = doseSnapshot.get('scheduledFor');
     const medicationId = doseSnapshot.get('medicationId');
     if (!profileReference || !(scheduledFor instanceof Timestamp) || typeof medicationId !== 'string') continue;
+    const medication = await profileReference.collection('medications').doc(medicationId).get();
+    if (!medication.exists || medication.get('active') !== true) continue;
 
     const missed = await markDoseMissed(doseReference, doseSnapshot);
-    const kind: ReminderKind = missed ? 'missed-dose' : 'upcoming-dose';
+    if (missed) {
+      const complete = await deliverEscalation(profileReference, doseReference.id);
+      if (complete) await doseReference.set({ escalationProcessedAt: FieldValue.serverTimestamp() }, { merge: true });
+      continue;
+    }
+    // Respect the user's bounded follow-up without extending the fixed missed-dose deadline.
+    const followUp = doseSnapshot.get('nextReminderAt');
+    if (followUp instanceof Timestamp && followUp.toMillis() <= now) {
+      const recipients = await listRecipients(profileReference, true);
+      if (recipients.length && await deliverReminder(profileReference, 'upcoming-dose', `${doseReference.id}_snooze${doseSnapshot.get('snoozeCount')}`, recipients)) {
+        await database.runTransaction(async (tx) => {
+          const current = await tx.get(doseReference);
+          if (current.get('nextReminderAt') instanceof Timestamp && current.get('nextReminderAt').isEqual(followUp)) tx.update(doseReference, { nextReminderAt: null });
+        });
+      }
+      continue;
+    }
+    const kind: ReminderKind = 'upcoming-dose';
     if (!missed && doseSnapshot.get('reminderSentAt') != null) continue;
-    if (!missed && scheduledFor.toMillis() < now) continue;
+    if (!missed && followUp instanceof Timestamp) continue;
     const recipients = await listRecipients(profileReference, !missed);
     if (recipients.length === 0) continue;
 
@@ -246,21 +266,16 @@ export const sendScheduledCareReminders = onSchedule({
     }
   }
 
-  const missedDoses = await database.collectionGroup('doseLogs')
-    .where('status', '==', 'missed')
-    .where('missedAlertSentAt', '==', null)
-    .limit(MAX_DOSES_PER_SWEEP)
-    .get();
+  await pending.advance();
+  const missedPage = await dosePage('missed', Timestamp.fromMillis(now));
+  const missedDoses = missedPage.page;
   for (const doseSnapshot of missedDoses.docs) {
     const profileReference = doseSnapshot.ref.parent.parent;
-    if (!profileReference || doseSnapshot.get('missedAlertSentAt') != null) continue;
-    const recipients = await listRecipients(profileReference, false);
-    if (recipients.length === 0) continue;
-    const delivered = await deliverReminder(profileReference, 'missed-dose', doseSnapshot.id, recipients);
-    if (delivered) {
-      await doseSnapshot.ref.set({ missedAlertSentAt: FieldValue.serverTimestamp() }, { merge: true });
-    }
+    if (!profileReference || doseSnapshot.get('escalationProcessedAt') != null) continue;
+    const complete = await deliverEscalation(profileReference, doseSnapshot.id);
+    if (complete) await doseSnapshot.ref.set({ escalationProcessedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
+  await missedPage.advance();
 
   const appointmentLimit = Timestamp.fromMillis(now + APPOINTMENT_DAY_WINDOW_MS);
   const appointments = await database.collectionGroup('appointments')

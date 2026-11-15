@@ -4,6 +4,8 @@ import type { CareMember, CareProfile } from '@sanjeevani/shared/types/profile';
 
 export const DEFAULT_PROFILE: CareProfile = {
   id: 'profile-dadaji-primary',
+  ownerUid: 'user-caretaker-1',
+  elderUid: 'user-elder-1',
   elderName: 'Dadaji (Shri Rameshwar)',
   timezone: 'Asia/Kolkata',
   graceMinutes: 30,
@@ -32,6 +34,8 @@ export const INITIAL_MEMBERS: CareMember[] = [
     joinedAt: '2026-11-02T10:30:00Z',
   },
 ];
+
+INITIAL_MEMBERS.push({ uid: 'user-doctor-1', role: 'doctor', displayName: 'Dr. Asha Sharma', email: 'asha.doctor@example.com', joinedAt: '2026-11-01T08:00:00Z' });
 
 export const INITIAL_MEDICATIONS: Medication[] = [
   {

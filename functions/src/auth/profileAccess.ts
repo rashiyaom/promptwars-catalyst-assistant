@@ -1,10 +1,11 @@
-import { randomUUID } from 'node:crypto';
-import { compare, hash } from 'bcryptjs';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { compare } from 'bcryptjs';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { FieldValue, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 import { loadFunctionConfig } from '../config.js';
+import { requireIdentity, assertOwner, assertInvitation, tokenHash, elderProfileSchema, inviteSchema, acceptSchema, revokeInviteSchema, memberChangeSchema, INVITATION_LIFETIME_MS } from './accessPolicy.js';
 
 const adminApp = getApps()[0] ?? initializeApp();
 const database = getFirestore(adminApp);
@@ -13,21 +14,8 @@ const FUNCTION_OPTIONS = {
   maxInstances: 10,
   enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true',
 };
-const BCRYPT_ROUNDS = 12;
 const MAX_PASSCODE_FAILURES = 5;
 const PASSCODE_LOCK_MS = 15 * 60 * 1000;
-
-const createProfileSchema = z.object({
-  elderName: z.string().trim().min(1).max(100),
-  displayName: z.string().trim().min(1).max(100),
-  timezone: z.string().trim().min(1).max(64),
-  elderPasscode: z.string().regex(/^\d{6,12}$/),
-  caretakerPasscode: z.string().regex(/^\d{6,12}$/),
-  familyPasscode: z.string().regex(/^\d{6,12}$/),
-}).refine(
-  (value) => new Set([value.elderPasscode, value.caretakerPasscode, value.familyPasscode]).size === 3,
-  { message: 'Each role must use a different passcode.' },
-);
 
 const joinProfileSchema = z.object({
   profileId: z.string().uuid(),
@@ -37,77 +25,130 @@ const joinProfileSchema = z.object({
 
 type MemberRole = 'elder' | 'caretaker' | 'family';
 
-/** Require an authenticated Firebase member identity before profile operations. */
-function requireIdentity(request: { readonly auth?: { readonly uid: string; readonly token: { readonly email?: unknown; readonly email_verified?: unknown } } | null }): {
-  uid: string;
-  email: string;
-} {
-  const uid = request.auth?.uid;
-  const email = request.auth?.token.email;
-  if (!uid || typeof email !== 'string' || !email.includes('@')) {
-    throw new HttpsError('unauthenticated', 'Sign in with an email account before joining a care profile.');
-  }
-  if (request.auth?.token.email_verified !== true) {
-    throw new HttpsError('failed-precondition', 'Verify your email address before joining a care profile.');
-  }
-  return { uid, email };
-}
-
 /** Build the private profile reference used only by the Admin SDK. */
 function accessReference(profileId: string): DocumentReference {
   return database.doc(`profiles/${profileId}/private/access`);
 }
 
-/** Create a profile for the signed-in elder and persist only hashed role codes. */
+/** Upsert a private account from verified identity claims; care roles are never global. */
+export const ensureCareAccount = onCall(FUNCTION_OPTIONS, async (request) => {
+  const identity = requireIdentity(request);
+  const reference = database.doc(`users/${identity.uid}`);
+  await database.runTransaction(async (tx) => {
+    const existing = await tx.get(reference);
+    tx.set(reference, { ...identity, updatedAt: FieldValue.serverTimestamp(), ...(!existing.exists ? { createdAt: FieldValue.serverTimestamp() } : {}) }, { merge: true });
+  });
+  return identity;
+});
+
+/** An account creates an elder record; the elder need not have their own login yet. */
 export const createCareProfile = onCall(FUNCTION_OPTIONS, async (request) => {
   const identity = requireIdentity(request);
-  const parsed = createProfileSchema.safeParse(request.data);
-  if (!parsed.success) {
-    throw new HttpsError('invalid-argument', 'Check the profile details and use three different 6–12 digit role passcodes.');
-  }
-
-  const input = parsed.data;
+  const input = elderProfileSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError('invalid-argument', 'Check the elder name, relationship and timezone.');
   const profileId = randomUUID();
-  const [elderPasscodeHash, caretakerPasscodeHash, familyPasscodeHash] = await Promise.all([
-    hash(input.elderPasscode, BCRYPT_ROUNDS),
-    hash(input.caretakerPasscode, BCRYPT_ROUNDS),
-    hash(input.familyPasscode, BCRYPT_ROUNDS),
-  ]);
-  const profileReference = database.doc(`profiles/${profileId}`);
-  const memberReference = profileReference.collection('members').doc(identity.uid);
-  const userProfileReference = database.doc(`users/${identity.uid}/profiles/${profileId}`);
+  const role = input.data.relationship === 'self' ? 'elder' : 'caretaker';
+  const profile = { ...input.data, ownerUid: identity.uid, createdBy: identity.uid, elderUid: role === 'elder' ? identity.uid : null,
+    accessMode: 'invitation', schemaVersion: 2, graceMinutes: loadFunctionConfig().graceMinutes, createdAt: FieldValue.serverTimestamp() };
+  const batch = database.batch();
+  batch.create(database.doc(`profiles/${profileId}`), profile);
+  batch.create(database.doc(`profiles/${profileId}/members/${identity.uid}`), { ...identity, role, joinedAt: FieldValue.serverTimestamp() });
+  batch.create(database.doc(`users/${identity.uid}/profiles/${profileId}`), { profileId, elderName: profile.elderName, timezone: profile.timezone, graceMinutes: profile.graceMinutes, ownerUid: identity.uid, role });
+  batch.set(database.doc(`users/${identity.uid}`), { ...identity, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await batch.commit();
+  return { profileId, role };
+});
 
-  await database.runTransaction(async (transaction) => {
-    transaction.create(profileReference, {
-      elderName: input.elderName,
-      createdBy: identity.uid,
-      timezone: input.timezone,
-      graceMinutes: loadFunctionConfig().graceMinutes,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    transaction.create(memberReference, {
-      uid: identity.uid,
-      role: 'elder',
-      displayName: input.displayName,
-      email: identity.email,
-      joinedAt: FieldValue.serverTimestamp(),
-    });
-    transaction.create(userProfileReference, {
-      profileId,
-      role: 'elder',
-      elderName: input.elderName,
-      timezone: input.timezone,
-      graceMinutes: loadFunctionConfig().graceMinutes,
-      joinedAt: FieldValue.serverTimestamp(),
-    });
-    transaction.create(accessReference(profileId), {
-      elderPasscodeHash,
-      caretakerPasscodeHash,
-      familyPasscodeHash,
-    });
+/** Owner creates an email-bound, single-use invitation. Only a digest is stored. */
+export const createCareInvitation = onCall(FUNCTION_OPTIONS, async (request) => {
+  const identity = requireIdentity(request);
+  const parsed = inviteSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError('invalid-argument', 'Check the invitation email and role.');
+  const { profileId, email, role } = parsed.data;
+  if (email === identity.email) throw new HttpsError('invalid-argument', 'You cannot invite yourself into a different role.');
+  const invitationId = randomUUID();
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = Timestamp.fromMillis(Date.now() + INVITATION_LIFETIME_MS);
+  const profileRef = database.doc(`profiles/${profileId}`);
+  await database.runTransaction(async (tx) => {
+    const [profile, member] = await Promise.all([tx.get(profileRef), tx.get(profileRef.collection('members').doc(identity.uid))]);
+    assertOwner(profile.data(), identity, member.exists);
+    if (role === 'elder' && profile.get('elderUid')) throw new HttpsError('already-exists', 'This elder is already linked to an account.');
+    tx.create(profileRef.collection('invitations').doc(invitationId), { email, role, tokenHash: tokenHash(token), status: 'pending', createdBy: identity.uid, expiresAt, createdAt: FieldValue.serverTimestamp() });
+    // Older profiles become invitation-only when the owner starts using this access model.
+    tx.update(profileRef, { accessMode: 'invitation' });
+    tx.create(profileRef.collection('auditEvents').doc(), { action: 'invitation.created', actorUid: identity.uid, invitationId, role, at: FieldValue.serverTimestamp() });
   });
+  return { profileId, invitationId, token, expiresAt: expiresAt.toDate().toISOString() };
+});
 
-  return { profileId, role: 'elder' as const };
+/** Acceptance atomically connects the account and elder in both directions. */
+export const acceptCareInvitation = onCall(FUNCTION_OPTIONS, async (request) => {
+  const identity = requireIdentity(request);
+  const parsed = acceptSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError('invalid-argument', 'Use the complete invitation link.');
+  const { profileId, invitationId, token } = parsed.data;
+  const profileRef = database.doc(`profiles/${profileId}`);
+  return database.runTransaction(async (tx) => {
+    const invitationRef = profileRef.collection('invitations').doc(invitationId);
+    const memberRef = profileRef.collection('members').doc(identity.uid);
+    const [profile, invitation, existing] = await Promise.all([tx.get(profileRef), tx.get(invitationRef), tx.get(memberRef)]);
+    if (!profile.exists || !invitation.exists) throw new HttpsError('not-found', 'The invitation could not be found.');
+    const previousOwner = profile.get('ownerUid') ?? profile.get('createdBy');
+    if (invitation.get('createdBy') !== previousOwner) throw new HttpsError('permission-denied', 'Ask the current profile owner for a new invitation.');
+    const role = assertInvitation(invitation.data() ?? {}, identity, token, invitation.get('expiresAt') instanceof Timestamp ? invitation.get('expiresAt').toMillis() : NaN, Date.now());
+    if (existing.exists) throw new HttpsError('already-exists', 'This account already belongs to the care profile.');
+    if (role === 'elder' && profile.get('elderUid')) throw new HttpsError('already-exists', 'This elder already has a linked account.');
+    // Once a self-registered elder connects a caretaker, access administration
+    // belongs to that caretaker. Old owner-issued pending links stop working.
+    const handoff = role === 'caretaker' && profile.get('elderUid') === previousOwner;
+    tx.create(memberRef, { ...identity, role, joinedAt: FieldValue.serverTimestamp() });
+    tx.create(database.doc(`users/${identity.uid}/profiles/${profileId}`), { profileId, role, elderName: profile.get('elderName'), timezone: profile.get('timezone'), graceMinutes: profile.get('graceMinutes'), ownerUid: handoff ? identity.uid : previousOwner });
+    if (handoff) {
+      tx.update(profileRef, { ownerUid: identity.uid });
+      tx.set(database.doc(`users/${previousOwner}/profiles/${profileId}`), { ownerUid: identity.uid }, { merge: true });
+      tx.create(profileRef.collection('auditEvents').doc(), { action: 'ownership.caretaker_handoff', actorUid: identity.uid, previousOwner, at: FieldValue.serverTimestamp() });
+    }
+    if (role === 'elder') tx.update(profileRef, { elderUid: identity.uid });
+    tx.update(invitationRef, { status: 'accepted', acceptedBy: identity.uid, acceptedAt: FieldValue.serverTimestamp() });
+    tx.create(profileRef.collection('auditEvents').doc(), { action: 'invitation.accepted', actorUid: identity.uid, invitationId, role, at: FieldValue.serverTimestamp() });
+    return { profileId, role };
+  });
+});
+
+/** Revoke a pending link; a used invitation cannot be recycled. */
+export const revokeCareInvitation = onCall(FUNCTION_OPTIONS, async (request) => {
+  const identity = requireIdentity(request);
+  const parsed = revokeInviteSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError('invalid-argument', 'Invalid invitation.');
+  const profileRef = database.doc(`profiles/${parsed.data.profileId}`);
+  const inviteRef = profileRef.collection('invitations').doc(parsed.data.invitationId);
+  await database.runTransaction(async (tx) => {
+    const [profile, member, invitation] = await Promise.all([tx.get(profileRef), tx.get(profileRef.collection('members').doc(identity.uid)), tx.get(inviteRef)]);
+    assertOwner(profile.data(), identity, member.exists);
+    if (!invitation.exists || invitation.get('status') !== 'pending') throw new HttpsError('failed-precondition', 'This invitation is no longer pending.');
+    tx.update(inviteRef, { status: 'revoked', revokedAt: FieldValue.serverTimestamp() });
+  });
+  return { success: true };
+});
+
+/** Remove membership and its reverse lookup atomically. An owner cannot remove themselves. */
+export const removeCareMember = onCall(FUNCTION_OPTIONS, async (request) => {
+  const identity = requireIdentity(request);
+  const parsed = memberChangeSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError('invalid-argument', 'Invalid member.');
+  const { profileId, memberUid } = parsed.data;
+  if (memberUid === identity.uid) throw new HttpsError('failed-precondition', 'The owner cannot remove their own membership.');
+  const profileRef = database.doc(`profiles/${profileId}`);
+  await database.runTransaction(async (tx) => {
+    const [profile, owner] = await Promise.all([tx.get(profileRef), tx.get(profileRef.collection('members').doc(identity.uid))]);
+    assertOwner(profile.data(), identity, owner.exists);
+    tx.delete(profileRef.collection('members').doc(memberUid));
+    tx.delete(database.doc(`users/${memberUid}/profiles/${profileId}`));
+    if (profile.get('elderUid') === memberUid) tx.update(profileRef, { elderUid: null });
+    tx.create(profileRef.collection('auditEvents').doc(), { action: 'member.removed', actorUid: identity.uid, memberUid, at: FieldValue.serverTimestamp() });
+  });
+  return { success: true };
 });
 
 /** Verify a shared role passcode server-side, with per-account attempt throttling. */
@@ -127,6 +168,8 @@ export const joinCareProfile = onCall(FUNCTION_OPTIONS, async (request) => {
     throw new HttpsError('resource-exhausted', 'Too many attempts. Wait before trying again.');
   }
 
+  const profileAccess = await database.doc(`profiles/${input.profileId}`).get();
+  if (profileAccess.get('accessMode') === 'invitation') throw new HttpsError('failed-precondition', 'Use an email invitation to connect this profile.');
   const accessSnapshot = await accessRef.get();
   if (!accessSnapshot.exists) {
     throw new HttpsError('not-found', 'The profile or passcode could not be verified.');
@@ -177,6 +220,7 @@ export const joinCareProfile = onCall(FUNCTION_OPTIONS, async (request) => {
       throw new HttpsError('already-exists', 'This account is already connected to the profile.');
     }
     const profileSnapshot = await transaction.get(database.doc(`profiles/${input.profileId}`));
+    if (profileSnapshot.get('accessMode') === 'invitation') throw new HttpsError('failed-precondition', 'Use an email invitation to connect this profile.');
     if (!profileSnapshot.exists) {
       throw new HttpsError('not-found', 'The profile or passcode could not be verified.');
     }

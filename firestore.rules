@@ -1,7 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
+  match /databases/{database}/documents {
   function signedIn() {
-    return request.auth != null;
+    return request.auth != null && request.auth.token.email_verified == true;
   }
 
   function memberPath(profileId) {
@@ -17,7 +18,22 @@ service cloud.firestore {
   }
 
   function canManageMedication(profileId) {
-    return isMember(profileId) && role(profileId) in ['elder', 'caretaker'];
+    return isMember(profileId) && role(profileId) in ['elder', 'caretaker', 'doctor'];
+  }
+
+  function canLogDose(profileId) { return isMember(profileId) && role(profileId) in ['elder', 'caretaker']; }
+  function isOwner(profileId) {
+    let profile = get(/databases/$(database)/documents/profiles/$(profileId)).data;
+    return isMember(profileId) && profile.get('ownerUid', profile.createdBy) == request.auth.uid;
+  }
+  function validAppointment(profileId) {
+    let data = request.resource.data;
+    let doctor = data.get('doctorUid', null);
+    return data.keys().hasOnly(['doctorName', 'doctorUid', 'specialty', 'dateTime', 'location', 'notes', 'createdBy', 'remindersSent'])
+      && data.doctorName is string && data.doctorName.size() > 0 && data.doctorName.size() <= 120
+      && data.specialty is string && data.specialty.size() <= 120 && data.dateTime is timestamp
+      && data.location is string && data.location.size() <= 300 && data.notes is string && data.notes.size() <= 1000
+      && (doctor == null || (doctor is string && get(/databases/$(database)/documents/profiles/$(profileId)/members/$(doctor)).data.role == 'doctor'));
   }
 
   function validMedication() {
@@ -27,8 +43,9 @@ service cloud.firestore {
       ])
       && request.resource.data.keys().hasOnly([
         'name', 'dosage', 'times', 'frequency', 'startDate', 'endDate', 'notes',
-        'active', 'updatedBy', 'updatedAt'
+        'active', 'imageUrl', 'updatedBy', 'updatedAt'
       ])
+      && (!('imageUrl' in request.resource.data) || (request.resource.data.imageUrl is string && request.resource.data.imageUrl.size() <= 2048 && (request.resource.data.imageUrl == '' || request.resource.data.imageUrl.matches('^https://.*'))))
       && request.resource.data.name is string
       && request.resource.data.name.size() > 0
       && request.resource.data.name.size() <= 120
@@ -65,7 +82,10 @@ service cloud.firestore {
       && request.resource.data.updatedAt is timestamp;
   }
 
-  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
     match /users/{uid}/profiles/{profileId} {
       allow get, list: if signedIn() && request.auth.uid == uid;
       allow write: if false;
@@ -81,11 +101,11 @@ service cloud.firestore {
 
         match /private/{privateDocument}/pushTokens/{tokenId} {
           allow read: if false;
-          allow create, update: if signedIn() && request.auth.uid == uid
+          allow create, update: if isMember(profileId) && request.auth.uid == uid
             && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
             && request.resource.data.token is string
             && request.resource.data.updatedAt is timestamp;
-          allow delete: if signedIn() && request.auth.uid == uid;
+          allow delete: if isMember(profileId) && request.auth.uid == uid;
         }
       }
 
@@ -102,8 +122,8 @@ service cloud.firestore {
       match /doseLogs/{doseLogId} {
         allow read: if isMember(profileId);
         allow create, delete: if false;
-        allow update: if canManageMedication(profileId)
-          && resource.data.status == 'pending'
+        allow update: if canLogDose(profileId)
+          && resource.data.status in ['pending', 'missed']
           && request.resource.data.status in ['taken', 'skipped']
           && request.resource.data.loggedBy == request.auth.uid
           && request.resource.data.loggedAt is timestamp
@@ -112,24 +132,25 @@ service cloud.firestore {
 
       match /appointments/{appointmentId} {
         allow read: if isMember(profileId);
-        allow create: if isMember(profileId)
-          && request.resource.data.keys().hasOnly(['doctorName', 'specialty', 'dateTime', 'location', 'notes', 'createdBy'])
-          && request.resource.data.doctorName is string
-          && request.resource.data.doctorName.size() > 0
-          && request.resource.data.doctorName.size() <= 120
-          && request.resource.data.specialty is string
-          && request.resource.data.specialty.size() <= 120
-          && request.resource.data.dateTime is timestamp
-          && request.resource.data.location is string
-          && request.resource.data.location.size() <= 300
-          && request.resource.data.notes is string
-          && request.resource.data.notes.size() <= 1000
-          && request.resource.data.createdBy == request.auth.uid;
-        allow update: if isMember(profileId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'doctorName', 'specialty', 'dateTime', 'location', 'notes'
-          ]);
-        allow delete: if isMember(profileId);
+        allow create: if canManageMedication(profileId) && validAppointment(profileId)
+          && !('remindersSent' in request.resource.data) && request.resource.data.createdBy == request.auth.uid;
+        allow update: if canManageMedication(profileId) && validAppointment(profileId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['doctorName', 'doctorUid', 'specialty', 'dateTime', 'location', 'notes']);
+        allow delete: if canManageMedication(profileId);
+      }
+      match /invitations/{id} { allow read: if isOwner(profileId); allow write: if false; }
+      match /auditEvents/{id} { allow read: if isOwner(profileId); allow write: if false; }
+      match /alertDeliveries/{id} { allow read: if isMember(profileId); allow write: if false; }
+      match /notificationSettings/{id} {
+        allow read: if isMember(profileId) && role(profileId) == 'caretaker';
+        allow create, update: if id == 'escalation' && isMember(profileId) && role(profileId) == 'caretaker'
+          && request.resource.data.keys().hasOnly(['enabled','email','smsNumber','consentConfirmed','updatedBy','updatedAt'])
+          && request.resource.data.enabled is bool && request.resource.data.consentConfirmed is bool
+          && request.resource.data.email is string && request.resource.data.email.size() <= 254
+          && request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$')
+          && request.resource.data.smsNumber == ''
+          && (!request.resource.data.enabled || request.resource.data.consentConfirmed)
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt is timestamp;
       }
 
       match /reminders/{reminderId} {

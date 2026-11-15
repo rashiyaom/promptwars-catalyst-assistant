@@ -14,5 +14,7 @@ export interface Medication {
   readonly startDate: string;
   readonly endDate: string | null;
   readonly notes: string;
+  /** Caregiver-provided package photo, never an AI medicine identification. */
+  readonly imageUrl?: string;
   readonly active: boolean;
 }

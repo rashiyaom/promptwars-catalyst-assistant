@@ -43,6 +43,7 @@ export async function listAppointments(profileId: string): Promise<Appointment[]
     return {
       id: item.id,
       doctorName: String(data.doctorName ?? ''),
+      doctorUid: typeof data.doctorUid === 'string' ? data.doctorUid : null,
       specialty: String(data.specialty ?? ''),
       dateTime: data.dateTime instanceof Timestamp ? data.dateTime.toDate().toISOString() : '',
       location: String(data.location ?? ''),
@@ -63,6 +64,7 @@ export async function updateAppointment(
   if (!parsed.success) throw new Error('Check the appointment details.');
   await updateDoc(doc(clients.db, 'profiles', profileId, 'appointments', appointmentId), {
     doctorName: parsed.data.doctorName,
+    doctorUid: parsed.data.doctorUid ?? null,
     specialty: parsed.data.specialty,
     dateTime: Timestamp.fromDate(new Date(parsed.data.dateTime)),
     location: parsed.data.location,

@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useLanguage } from '../i18n/LanguageContext.js';
+import { carePermissions } from '@sanjeevani/shared/types/access';
+import type { ElderProfileInput } from '@sanjeevani/shared/schemas/profile';
+import * as alertService from '../features/profiles/notificationSettingsService.js';
+import { nextSnoozeTime } from '@sanjeevani/shared/types/taus';
 import type { User } from 'firebase/auth';
 import type { Medication } from '@sanjeevani/shared/types/medication';
 import type { DoseLog } from '@sanjeevani/shared/types/doseLog';
@@ -7,7 +12,7 @@ import type { CareMember, CareProfile, MemberRole } from '@sanjeevani/shared/typ
 import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
 import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
 import { getFirebaseClients } from '../lib/firebase.js';
-import { signOutMember, subscribeToAuth } from '../features/auth/authService.js';
+import { ensureCareAccount, signOutMember, subscribeToAuth } from '../features/auth/authService.js';
 import * as medService from '../features/medications/medicationService.js';
 import * as apptService from '../features/appointments/appointmentService.js';
 import * as profService from '../features/profiles/profileService.js';
@@ -34,6 +39,10 @@ export interface CareContextValue extends ProfileData {
   readonly today: string;
   readonly todayDoses: readonly DoseLog[];
   readonly canManageMedication: boolean;
+  readonly canLogDose: boolean;
+  readonly authReady: boolean;
+  readonly demoActive: boolean;
+  snoozeDose: (dose: DoseLog) => Promise<string>;
   readonly canEdit: boolean;
   readonly currentMember: CareMember | null;
   readonly adherenceScore: { readonly taken: number; readonly total: number; readonly percentage: number };
@@ -51,7 +60,7 @@ export interface CareContextValue extends ProfileData {
   refreshData: () => Promise<void>;
   refreshProfiles: (preferredId?: string) => Promise<void>;
   switchProfile: (id: string) => Promise<void>;
-  createDemoProfile: (elderName: string, timezone: string, displayName: string) => CareProfile;
+  createDemoProfile: (input: ElderProfileInput) => CareProfile;
 }
 
 const EMPTY_PROFILE: CareProfile = { id: '', elderName: 'Choose a care profile', timezone: 'Asia/Kolkata', graceMinutes: 30 };
@@ -71,20 +80,22 @@ const CareContext = createContext<CareContextValue | null>(null);
 
 /** Observe Firebase identity and discard profile state on account changes. */
 export function CareProvider({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
-  const [user, setUser] = useState<User | null>(null);
-  useEffect(() => subscribeToAuth(setUser), []);
-  return <CareSession key={user?.emailVerified ? user.uid : 'signed-out'} user={user}>{children}</CareSession>;
+  const [identity, setIdentity] = useState<{ user: User | null; ready: boolean }>({ user: null, ready: getFirebaseClients() === null });
+  useEffect(() => subscribeToAuth((user) => setIdentity({ user, ready: true })), []);
+  return <CareSession key={identity.user?.emailVerified ? identity.user.uid : 'signed-out'} user={identity.user} authReady={identity.ready}>{children}</CareSession>;
 }
 
 /** Own profile-scoped data, preserving offline operation and server-enforced roles. */
-function CareSession({ children, user }: { readonly children: React.ReactNode; readonly user: User | null }): React.JSX.Element {
+function CareSession({ children, user, authReady }: { readonly children: React.ReactNode; readonly user: User | null; readonly authReady: boolean }): React.JSX.Element {
+  const { locale } = useLanguage();
   const isDemo = getFirebaseClients() === null;
   const isLiveConnected = !isDemo && Boolean(user?.emailVerified && !user.isAnonymous);
+  const [demoActive, setDemoActive] = useState(false);
   const [data, setData] = useState<ProfileData>(() => isDemo ? demoData() : EMPTY_DATA);
   const [currentMember, setCurrentMember] = useState<CareMember | null>(() => isDemo ? INITIAL_MEMBERS[0] : null);
   const [profiles, setProfiles] = useState<CareProfile[]>(() => isDemo ? [DEFAULT_PROFILE] : []);
   const [isElderMode, setIsElderMode] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(isLiveConnected);
   const [dataError, setDataError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const requestVersion = useRef(0);
@@ -95,8 +106,11 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
   const today = localDate(now, activeProfile.timezone);
   const todayDoses = scheduledDoses(medications, today, activeProfile.timezone).map((dose) => doseLogs.find((log) => log.id === dose.id) ?? dose);
   const taken = todayDoses.filter((dose) => dose.status === 'taken').length;
-  const canEdit = Boolean(activeProfile.id) && !loading && (isDemo || isLiveConnected);
-  const canManageMedication = canEdit && role !== 'family';
+  const accessible = Boolean(activeProfile.id) && !loading && (isDemo || isLiveConnected);
+  const permissions = carePermissions(role);
+  const canEdit = accessible && permissions.manageAppointments;
+  const canManageMedication = accessible && permissions.manageMedication;
+  const canLogDose = accessible && permissions.logDose;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -113,7 +127,7 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     const version = ++requestVersion.current;
     setLoading(true);
     setDataError(null);
-    setData(EMPTY_DATA);
+    if (dataRef.current.activeProfile.id !== id) setData(EMPTY_DATA);
     try {
       const [profile, memberRole, meds, appts, members, logs] = await Promise.all([
         profService.getCareProfile(id), profService.getMyProfileRole(id), medService.listMedications(id),
@@ -123,7 +137,7 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
       new Intl.DateTimeFormat('en', { timeZone: profile.timezone }).format();
       if (version === requestVersion.current) setData({ activeProfile: profile, role: memberRole, medications: meds, appointments: appts, careMembers: members, doseLogs: logs });
     } catch (error) {
-      if (version === requestVersion.current) setDataError(error instanceof Error ? error.message : 'Could not load profile. Please retry.');
+      if (version === requestVersion.current) { setData(EMPTY_DATA); setDataError(error instanceof Error ? error.message : 'Could not load profile. Please retry.'); }
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
@@ -134,6 +148,7 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     setLoading(true);
     setDataError(null);
     try {
+      await ensureCareAccount();
       const found = await profService.listMyCareProfiles();
       setProfiles(found);
       const selected = found.find((profile) => profile.id === (preferredId ?? dataRef.current.activeProfile.id)) ?? found[0];
@@ -174,8 +189,8 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     changeData(activeProfile.id, (previous) => ({ ...previous, medications: previous.medications.filter((item) => item.id !== id) }));
   };
   const logDose = async (dose: DoseLog, status: 'taken' | 'skipped') => {
-    requireEdit(true);
-    if (dose.status !== 'pending') throw new Error('This dose has already been recorded.');
+    if (!canLogDose) throw new Error('Only the elder or caretaker may record doses.');
+    if (dose.status !== 'pending' && dose.status !== 'missed') throw new Error('This dose has already been recorded.');
     if (!isDemo) await medService.logDose(activeProfile.id, dose.id, status);
     const logged: DoseLog = { ...dose, status, loggedAt: new Date().toISOString(), loggedBy: user?.uid ?? 'demo-member' };
     changeData(activeProfile.id, (previous) => ({ ...previous, doseLogs: [...previous.doseLogs.filter((item) => item.id !== dose.id), logged] }));
@@ -191,25 +206,42 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     if (!isDemo) await apptService.deleteAppointment(activeProfile.id, id);
     changeData(activeProfile.id, (previous) => ({ ...previous, appointments: previous.appointments.filter((item) => item.id !== id) }));
   };
-  const createDemoProfile = (elderName: string, timezone: string, displayName: string): CareProfile => {
+  const createDemoProfile = (input: ElderProfileInput): CareProfile => {
     if (!isDemo) throw new Error('Demo profiles are only available in offline mode.');
-    const profile = { id: crypto.randomUUID(), elderName, timezone, graceMinutes: 30 };
+    const uid = currentMember?.uid ?? 'demo-member';
+    const ownerRole = input.relationship === 'self' ? 'elder' : 'caretaker';
+    const profile = { id: crypto.randomUUID(), ...input, ownerUid: uid, elderUid: ownerRole === 'elder' ? uid : null, graceMinutes: 30 };
     demoProfiles.current.set(activeProfile.id, dataRef.current);
-    const next: ProfileData = { ...EMPTY_DATA, activeProfile: profile, role: 'elder', careMembers: [{ uid: 'demo-member', role: 'elder', displayName, email: '', joinedAt: new Date().toISOString() }] };
+    const member: CareMember = { uid, role: ownerRole, displayName: currentMember?.displayName ?? input.elderName, email: currentMember?.email ?? '', joinedAt: new Date().toISOString() };
+    const next: ProfileData = { ...EMPTY_DATA, activeProfile: profile, role: ownerRole, careMembers: [member] };
     demoProfiles.current.set(profile.id, next);
     setProfiles((previous) => [...previous, profile]);
-    setData(next);
+    setCurrentMember(member); setData(next);
     return profile;
+  };
+  const snoozeDose = async (dose: DoseLog): Promise<string> => {
+    if (!canLogDose) throw new Error('Only the elder or caretaker may record doses.');
+    let nextReminderAt: string;
+    if (isDemo) {
+      const next = nextSnoozeTime(Date.parse(dose.scheduledFor), activeProfile.graceMinutes, dose.snoozeCount ?? 0, dose.status, Date.now());
+      if (next === null) throw new Error('This dose needs care-circle follow-up; its escalation deadline cannot be delayed.');
+      nextReminderAt = new Date(next).toISOString();
+    } else nextReminderAt = (await alertService.snoozeDose(activeProfile.id, dose.id)).nextReminderAt;
+    changeData(activeProfile.id, (previous) => ({ ...previous, doseLogs: [...previous.doseLogs.filter((log) => log.id !== dose.id), { ...dose, nextReminderAt, snoozeCount: (dose.snoozeCount ?? 0) + 1 }] }));
+    return nextReminderAt;
   };
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = locale;
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
   };
 
   const signInAsMember = (member: CareMember) => {
+    if (!isDemo) return;
+    setDemoActive(true);
     setCurrentMember(member);
     setData((previous) => ({ ...previous, role: member.role }));
   };
@@ -218,10 +250,11 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     if (!isDemo && user) {
       await signOutMember();
     }
+    setDemoActive(false);
     setCurrentMember(null);
   };
 
-  return <CareContext.Provider value={{ ...data, user, isDemo, isLiveConnected, isElderMode, loading, dataError, profiles, today, todayDoses, canEdit, canManageMedication, currentMember,
+  return <CareContext.Provider value={{ ...data, user, authReady, demoActive, canLogDose, snoozeDose, isDemo, isLiveConnected, isElderMode, loading, dataError, profiles, today, todayDoses, canEdit, canManageMedication, currentMember: isDemo ? currentMember : data.careMembers.find((member) => member.uid === user?.uid) ?? null,
     adherenceScore: { taken, total: todayDoses.length, percentage: todayDoses.length ? Math.round(taken / todayDoses.length * 100) : 0 },
     signInAsMember, signOutCurrentMember,
     setRole: (next) => { if (isDemo) setData((previous) => ({ ...previous, role: next })); },

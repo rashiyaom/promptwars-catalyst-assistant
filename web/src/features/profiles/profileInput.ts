@@ -4,7 +4,7 @@ import type { MemberRole } from '@sanjeevani/shared/types/profile';
 export const profileSchema = z.object({ elderName: z.string().trim().min(1).max(100), displayName: z.string().trim().min(1).max(100),
   timezone: z.string().trim().min(1).max(64).refine((value) => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } }, 'Enter a valid IANA timezone, such as Asia/Kolkata.') });
 export const joinSchema = z.object({ profileId: z.string().uuid(), displayName: z.string().trim().min(1).max(100), passcode: z.string().regex(/^\d{6,12}$/, 'Enter a 6–12 digit passcode.') });
-export type RoleCodes = Record<MemberRole, string>;
+export type RoleCodes = Record<Exclude<MemberRole, 'doctor'>, string>;
 
 /** Generate three distinct role passcodes without hardcoded secrets. */
 export function generateRoleCodes(): RoleCodes {

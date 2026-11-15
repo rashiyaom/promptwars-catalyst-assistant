@@ -1,4 +1,5 @@
 import { collection, doc, getDoc, getDocs, Timestamp } from 'firebase/firestore';
+import { isMemberRole } from '@sanjeevani/shared/types/access';
 import type { CareMember, CareProfile, MemberRole } from '@sanjeevani/shared/types/profile';
 import { getFirebaseClients } from '../../lib/firebase.js';
 
@@ -17,6 +18,7 @@ export async function listMyCareProfiles(): Promise<CareProfile[]> {
       elderName: String(data.elderName ?? 'Care profile'),
       timezone: String(data.timezone ?? 'UTC'),
       graceMinutes: Number(data.graceMinutes ?? 30),
+      ownerUid: String(data.ownerUid ?? ''),
     };
   });
 }
@@ -33,6 +35,8 @@ export async function getCareProfile(profileId: string): Promise<CareProfile | n
     elderName: String(data.elderName ?? ''),
     timezone: String(data.timezone ?? 'UTC'),
     graceMinutes: Number(data.graceMinutes ?? 30),
+    ownerUid: String(data.ownerUid ?? data.createdBy ?? ''),
+    elderUid: typeof data.elderUid === 'string' ? data.elderUid : null,
   };
 }
 
@@ -45,7 +49,7 @@ export async function listCareMembers(profileId: string): Promise<CareMember[]> 
     const data = item.data();
     return {
       uid: item.id,
-      role: (data.role ?? 'family') as MemberRole,
+      role: isMemberRole(data.role) ? data.role : 'family',
       displayName: String(data.displayName ?? 'Care Member'),
       email: String(data.email ?? ''),
       joinedAt: data.joinedAt instanceof Timestamp ? data.joinedAt.toDate().toISOString() : '',
@@ -58,7 +62,8 @@ export async function getMyProfileRole(profileId: string): Promise<MemberRole | 
   const clients = getFirebaseClients();
   const memberId = clients?.auth.currentUser?.uid;
   if (!clients || !memberId) return null;
-  const snapshot = await getDoc(doc(clients.db, 'users', memberId, 'profiles', profileId));
+  const snapshot = await getDoc(doc(clients.db, 'profiles', profileId, 'members', memberId));
   if (!snapshot.exists()) return null;
-  return (snapshot.data().role as MemberRole) ?? null;
+  const role = snapshot.data().role;
+  return isMemberRole(role) ? role : null;
 }

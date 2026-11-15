@@ -1,3 +1,5 @@
+> Current delivery architecture: Firebase only. Authentication handles verification/reset emails; Cloud Functions and Firestore track reminders; FCM sends push notifications to connected caretaker devices. Custom reminder email and SMS are not supported. Enable browser notifications from Account and configure VITE_FIREBASE_VAPID_KEY. Deploy Firebase Functions, rules, indexes and Hosting before live use.
+
 # Sanjeevani — Elder Care & Medication Coordination
 
 > A shared, elder-first care space for organizing medication routines, appointments, and support from family and caregivers.
@@ -6,7 +8,7 @@ Built for the **PromptWars × Catalyst** challenge (Google for Developers, Build
 
 ## Project status
 
-This repository contains the Sanjeevani workspace: an accessible React shell, shared TypeScript models, Firebase client setup for Authentication, Firestore, AI Logic, App Check, and Messaging, callable profile access functions, scheduled dose generation and reminders, and Firebase Hosting configuration. Connect a Firebase project and configure its console settings before using live services; the web app still needs feature screens and end-to-end flow wiring.
+This repository contains the Sanjeevani workspace: an accessible React shell, shared TypeScript models, Firebase client setup for Authentication, Firestore, AI Logic, App Check, and Messaging, callable profile access functions, scheduled dose generation and reminders, and Firebase Hosting configuration. Connect a Firebase project and configure its console settings before using live services; the bilingual public website, account flow and Taus care workspace are implemented. See [the account and Taus architecture](docs/architecture.md) for data relationships, reminder behavior and live setup.
 
 ## 1. Problem and intended users
 
@@ -24,9 +26,7 @@ The product helps organize care information. It does not diagnose, prescribe, re
 | Shared care profiles and role-specific access | Verified email sign-in/registration, profile creation/joining and switching; server-derived live roles and a separate demo role selector |
 | Medication schedules and adherence logs | Morning/afternoon/evening/night timeline, full schedule editing, independent dose logging, and a seven-day adherence calendar |
 | Appointment management and reminders | Timezone-aware appointments, preparation checklists, directions, Google Calendar links and offline iCal downloads; scheduled reminders implemented |
-| Email and push delivery | Resend and FCM delivery path with bounded retries implemented |
 | Pill-strip label check | Firebase AI Logic interactive verification demo with consent boundary and visible package text comparison |
-| Automated test suite | 57 offline tests across the assistant, schemas, profile validation, dose scheduling, calendar exports, and frontend rendering |
 | Hosting deployment | Firebase Hosting configuration serves the built React web app |
 
 The offline core and web workspace provide a complete, safe foundation for elder care coordination.
@@ -35,12 +35,11 @@ The offline core and web workspace provide a complete, safe foundation for elder
 
 | Requirement | Planned implementation | Status |
 |---|---|---|
-| Shared access for elders, caregivers, and family | Firebase Authentication, profile membership, server-verified role access | Service layer implemented; UI remains |
-| View and manage medication schedules | Firestore medication service and shared model | Read/add service implemented; edit/delete UI remains |
-| Track taken, missed, and skipped doses | Auditable dose logs and scheduled generation | Read/log/generation service implemented; adherence view remains |
-| Manage upcoming appointments | Firestore appointment service and shared model | Read/add service implemented; edit/delete UI remains |
-| Send proactive reminders | Scheduled Cloud Functions, Resend, Firebase Cloud Messaging | Handler implemented; credentials and live verification remain |
-| Elder-first accessible experience | React web app with keyboard support, readable text, high contrast, and clear recovery messages | Starter shell available; feature screens planned |
+| Shared access for elders, caregivers, and family | Firebase Authentication, profile membership, server-verified role access | Account, invitation and profile switching screens implemented |
+| View and manage medication schedules | Firestore medication service and shared model | Care workspace and service layer implemented |
+| Track taken, missed, and skipped doses | Auditable dose logs and scheduled generation | Dose timeline and adherence calendar implemented |
+| Manage upcoming appointments | Firestore appointment service and shared model | Care workspace and service layer implemented |
+| Elder-first accessible experience | React web app with keyboard support, readable text, high contrast, and clear recovery messages | Bilingual responsive screens implemented |
 | Reliable, secure behavior | Strict TypeScript, schema validation, guardrails, deterministic mock mode, and role-gated Firestore rules | Foundation in place; rule tests and live review remain |
 
 ## 4. Technology
@@ -52,7 +51,6 @@ The offline core and web workspace provide a complete, safe foundation for elder
 | Assistant validation | Zod schemas and deterministic decision rules |
 | Cloud backend | Firebase Cloud Functions and Admin SDK |
 | Data | Cloud Firestore with member and role-based rules |
-| Email and push | Resend and Firebase Cloud Messaging |
 | AI verification | Firebase AI Logic with Gemini for visible package text only |
 | Abuse protection | Firebase App Check with reCAPTCHA Enterprise |
 | Tests | Vitest offline tests; Firebase Emulator Suite available for live integration review |
@@ -68,7 +66,6 @@ flowchart LR
   AGENT --> MEMORY[Short-term session memory]
   AGENT --> TOOLS[Deterministic mock tools]
   TOOLS -. optional integration .-> FB[Firebase services]
-  FB --> EMAIL[Resend email]
   FB --> PUSH[Firebase Cloud Messaging]
   FB --> AI[Firebase AI Logic]
   APP[App Check] -. protects .-> FB
@@ -140,7 +137,7 @@ Sanjeevani/
 │   ├── src/features/verification/# Firebase AI Logic label comparison
 │   └── public/                  # App icon
 ├── functions/
-│   ├── src/auth/                # Hashed role passcodes and profile membership
+│   ├── src/auth/                # Verified accounts, invitations, roles and Taus actions
 │   ├── src/reminders/           # Dose generation and email/push reminders
 │   └── src/lib/                 # Structured logging and scheduling helpers
 └── tests/                       # Vitest test suites (decision engine, guardrails, agent, schemas, config)
@@ -169,22 +166,29 @@ Start `npm run dev` in another terminal. The emulator project uses the demo ID `
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start the Vite development server |
+| `npm run test:emulator` | Verify callable relationships and security rules locally (requires Java) |
 | `npm run emulators` | Start Firebase Auth, Firestore, and Functions emulators |
 | `npm run typecheck` | Type-check configured workspaces |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run 57 offline Vitest tests, including all 35 original tests |
 | `npm run build` | Type-check and build the web and Functions workspaces |
 | `npm run deploy` | Build and deploy Hosting, Firestore rules/indexes, and Functions to the selected Firebase project |
 | `npm run deploy:hosting` | Build and deploy only the React app to Firebase Hosting |
 
+### Website and languages
+
+The homepage uses a lime, cream, and dark-olive layout inspired by the supplied reference, with an explicitly labeled sample care summary and direct links into the care workspace. Its artwork is CSS-only: no new dependencies, remote fonts, photos, or translation API calls.
+
+Use **EN / हिन्दी** in the header. The device remembers the language when local storage is available. Navigation, forms, medication controls, appointment preparation, account/profile screens, and emergency guidance are translated. Dates and speech use the selected locale (Hindi speech depends on an installed device voice). Care records and medicine names remain exactly as entered. The offline assistant recognizes common Hindi emergency, missed-dose, and appointment phrases; it is still a deterministic assistant, not a general translator.
+
 ### Frontend feature walkthrough
 
 - **Medication Schedule:** view each dose in Morning (05:00–11:59), Afternoon (12:00–16:59), Evening (17:00–20:59), or Night. Times and dates use the active profile’s timezone. Marking one dose taken does not mark the medication’s other doses. The seven-day calendar distinguishes taken, missed, skipped, pending, and absent records.
-- **Edit schedules:** the All Medication Schedules section includes paused and non-daily schedules. Edit preserves multiple times, selected weekdays, interval length, date limits, notes, and active status. Family members can view medications; elder/caretaker members can change schedules and log doses.
+- **Edit schedules:** the All Medication Schedules section includes paused and non-daily schedules. Edit preserves multiple times, selected weekdays, interval length, date limits, notes, and active status. Family members can view medications. Elders, caretakers and doctors can manage schedules; only elders and caretakers can log doses.
 - **Appointments:** enter clinician-provided preparation instructions one per line. Checkmarks are saved only on this device and scoped to account, profile, and appointment; they are not shared with other members. Never infer fasting requirements from an appointment type. Calendar exports preserve the appointment instant and assume a clearly labeled 30-minute duration. The `.ics` download works offline; Google Calendar and directions links need internet.
 - **Emergency help:** use the always-visible SOS control or an urgent chat prompt to open the drawer. Country-labeled phone links open the device dialer. The care-circle SMS/push broadcast is always a simulation, including in Firebase mode; it does not contact anyone or dispatch help. The default demo lists Priya and Rohan.
-- **Account and Care Circle:** in Firebase mode, register, verify the emailed link, then sign in. Create a profile with an elder name, display name, and IANA timezone. Save its ID and three generated role codes before dismissing the result. Joining calls the existing server verifier; live roles cannot be selected locally. Use the profile selector to switch among memberships.
-- **Offline demo:** no network or account is needed. Sample schedules/history are relative to the current date. Create additional sample profiles, switch among them, and try their generated role codes during the session. Demo data and codes are held in memory and reset on reload; checklist checkmarks remain device-local when storage is available.
+- **Account and Care Circle:** register and verify your email, then create an elder profile for yourself or someone you care for. Connect elder, caretaker, family and doctor accounts through expiring email-bound invitations. Membership is checked by the server. The first caretaker connected to a self-created elder profile takes over access administration, protecting reminder contacts from elder changes.
+- **Offline demo:** choose a clearly labeled sample account, including a doctor. No password is collected. Changes remain in memory and reset on reload. The role switcher is demo-only. Demo reminder contacts are session-local and never send messages.
+
 
 Live dose logs are created by the existing hourly backend generator. New schedules show **Awaiting server schedule** until the corresponding log exists; use **Refresh doses** to load it. The UI updates the actual dose-log ID and does not attempt forbidden client-side log creation. Live load/write failures are shown explicitly; demo records are never substituted into a signed-in profile.
 
@@ -202,10 +206,8 @@ Use `.env.example` as the template. Keep real values in an ignored `.env` file o
 | `VITE_FIREBASE_VAPID_KEY` | Public web-push key from Firebase project settings |
 | `VITE_USE_FIREBASE_EMULATORS` | Connect the web SDK to local Firebase emulators |
 | `VITE_MOCK_MODE` | Keep the browser app offline by default; set to `false` for Firebase services |
-| `functions/.env` → `EMAIL_FROM` | Verified sender configured for Resend |
 | `functions/.env` → `GRACE_MINUTES` | Missed-dose grace period; defaults to `30` and accepts `5`–`240` |
 
-Set `RESEND_API_KEY` as a Firebase Secret. The Functions emulator can read `.secret.local`; never put the secret in a checked-in file.
 
 ## 9. Connect a Firebase project
 
@@ -215,10 +217,9 @@ The emulator project is separate from a live project. After choosing your Fireba
 2. Register a Firebase Web App and place its public config values in `.env` as `VITE_FIREBASE_*`.
 3. In **Authentication → Sign-in method**, enable Email/Password. The app sends verification emails; configure its email template and authorized domains.
 4. Create a Cloud Firestore database in the project. `npm run deploy` publishes the security rules and indexes.
-5. In **AI Logic**, complete the setup flow for the Gemini Developer API. The app uses Firebase AI Logic with `gemini-3.8-flash`; it does not need a browser Gemini API key.
+5. AI Logic is optional for the separate package-label service. The website’s label screen is a simulation; Taus does not require an LLM key.
 6. Register the Web App in **App Check** with a reCAPTCHA Enterprise site key. Put it in `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, allow the production domain, and enable enforcement after checking request metrics.
 7. In **Cloud Messaging → Web Push certificates**, create a VAPID key pair and put its public key in `VITE_FIREBASE_VAPID_KEY`.
-8. Set the Resend secret with `firebase functions:secrets:set RESEND_API_KEY`. In ignored `functions/.env`, set `MOCK_MODE=false`, `EMAIL_FROM` to a verified sender, and optionally `GRACE_MINUTES`.
 9. Run `npm run deploy` to build and deploy Hosting, Functions, Firestore rules, and indexes.
 
 Scheduled reminders use Cloud Scheduler. Confirm the required APIs and billing setup for the selected project before deploying scheduled functions; see the [Firebase scheduling guide](https://firebase.google.com/docs/functions/schedule-functions).
@@ -251,7 +252,6 @@ Scheduled reminders use Cloud Scheduler. Confirm the required APIs and billing s
 | Layered architecture | UI, agent orchestration, decision engine, guardrails, tools, and memory are separate modules |
 | Security guardrails | Zod input schemas, prompt-injection checks, PII redaction, membership and role-based Firestore rules |
 | Offline mode | Deterministic mock response tool; no model key is required |
-| Testing and verification | 57 offline Vitest tests covering the core, schemas, profile validation, timezone-aware schedules, calendar exports, and frontend rendering |
 | Accessibility | Semantic landmarks, responsive layout, readable sizing, and visible focus treatment in the starter UI |
 | Developer experience | npm workspaces, strict TypeScript, `.env.example`, and ignored build/cache artifacts |
 
@@ -259,7 +259,6 @@ Scheduled reminders use Cloud Scheduler. Confirm the required APIs and billing s
 
 1. Complete end-to-end Firebase emulator and live-service verification of account and membership flows.
 2. Add appointment editing and shared checklist completion if required.
-3. Configure a Firebase project, App Check, FCM VAPID, and Resend secrets.
 4. Expand backend reminder and Firestore security-rule coverage; measure the 85% coverage target.
 5. Complete keyboard, screen-reader, and live-service reviews.
 

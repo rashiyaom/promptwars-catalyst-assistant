@@ -54,6 +54,8 @@ export async function listDoseLogs(profileId: string): Promise<DoseLog[]> {
     return {
       id: item.id,
       medicationId: String(data.medicationId ?? ''),
+      nextReminderAt: data.nextReminderAt instanceof Timestamp ? data.nextReminderAt.toDate().toISOString() : null,
+      snoozeCount: Number(data.snoozeCount ?? 0),
       scheduledFor: data.scheduledFor instanceof Timestamp ? data.scheduledFor.toDate().toISOString() : '',
       status: data.status as DoseLog['status'],
       loggedBy: typeof data.loggedBy === 'string' ? data.loggedBy : null,
