@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { runAgent, type AgentResponse } from '@sanjeevani/core';
+import { CareProvider, useCare } from '../context/CareContext.js';
+import { MedicationModal } from '../components/medications/MedicationModal.js';
+import { AppointmentModal } from '../components/appointments/AppointmentModal.js';
+import { CareCircleModal } from '../components/careCircle/CareCircleModal.js';
+import type { MemberRole } from '@sanjeevani/shared/types/profile';
 
 interface ChatMessage {
   readonly id: string;
@@ -9,90 +14,48 @@ interface ChatMessage {
   readonly intent?: string;
 }
 
-interface MedicationScheduleItem {
-  readonly id: string;
-  readonly name: string;
-  readonly dosage: string;
-  readonly time: string;
-  status: 'pending' | 'taken' | 'skipped';
-  actionTime?: string;
-}
-
-interface AppointmentItem {
-  readonly id: string;
-  readonly doctor: string;
-  readonly specialty: string;
-  readonly dateTime: string;
-  readonly location: string;
-  readonly notes: string;
-}
-
-const INITIAL_MEDICATIONS: MedicationScheduleItem[] = [
-  {
-    id: 'med-1',
-    name: 'Amlodipine',
-    dosage: '5 mg oral tablet',
-    time: '08:00 AM',
-    status: 'taken',
-    actionTime: '08:05 AM',
-  },
-  {
-    id: 'med-2',
-    name: 'Metformin',
-    dosage: '500 mg oral tablet',
-    time: '01:00 PM',
-    status: 'pending',
-  },
-  {
-    id: 'med-3',
-    name: 'Atorvastatin',
-    dosage: '20 mg oral tablet',
-    time: '08:00 PM',
-    status: 'pending',
-  },
-];
-
-const INITIAL_APPOINTMENTS: AppointmentItem[] = [
-  {
-    id: 'appt-1',
-    doctor: 'Dr. Asha Sharma',
-    specialty: 'Cardiologist',
-    dateTime: 'Wednesday, Nov 20 at 10:30 AM',
-    location: 'Apollo Clinic, Room 304',
-    notes: 'Routine blood pressure review. Bring recent BP log.',
-  },
-  {
-    id: 'appt-2',
-    doctor: 'Dr. Vikram Patel',
-    specialty: 'Ophthalmologist',
-    dateTime: 'Thursday, Dec 05 at 03:00 PM',
-    location: 'City Eye Center, 2nd Floor',
-    notes: 'Annual diabetic eye examination.',
-  },
-];
-
 type ActiveTab = 'assistant' | 'medications' | 'appointments' | 'pill-check';
-type MemberRole = 'elder' | 'caretaker' | 'family';
 
-/** Complete accessible Elder Care Coordination web workspace. */
-export function App(): React.JSX.Element {
+/** Inner application component accessing CareContext. */
+function SanjeevaniApp(): React.JSX.Element {
+  const {
+    activeProfile,
+    role,
+    setRole,
+    isElderMode,
+    toggleElderMode,
+    speakText,
+    medications,
+    appointments,
+    adherenceScore,
+    logDose,
+    deleteMedication,
+    deleteAppointment,
+  } = useCare();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('assistant');
-  const [role, setRole] = useState<MemberRole>('elder');
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSosAlert, setShowSosAlert] = useState(false);
+
+  // Modals state
+  const [isMedModalOpen, setIsMedModalOpen] = useState(false);
+  const [isApptModalOpen, setIsApptModalOpen] = useState(false);
+  const [isCircleModalOpen, setIsCircleModalOpen] = useState(false);
+
+  // Pill strip OCR simulator state
+  const [pillConsent, setPillConsent] = useState(false);
+  const [pillCheckStatus, setPillCheckStatus] = useState<string | null>(null);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome-1',
       sender: 'assistant',
-      text: 'Namaste! I am Sanjeevani, your care coordination assistant. How can I help you, your caregiver, or family today?',
+      text: `Namaste! I am Sanjeevani, caring for ${activeProfile.elderName}. How can I assist you with medications, appointments, or everyday care today?`,
       urgency: 'routine',
       intent: 'general',
     },
   ]);
-
-  const [medications, setMedications] = useState<MedicationScheduleItem[]>(INITIAL_MEDICATIONS);
-  const [pillConsent, setPillConsent] = useState(false);
-  const [pillCheckStatus, setPillCheckStatus] = useState<string | null>(null);
 
   const handleSendMessage = async (queryText?: string) => {
     const textToSend = (queryText ?? inputQuery).trim();
@@ -123,6 +86,10 @@ export function App(): React.JSX.Element {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      if (response.urgency === 'urgent') {
+        setShowSosAlert(true);
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -138,13 +105,16 @@ export function App(): React.JSX.Element {
     }
   };
 
-  const handleMedicationAction = (id: string, action: 'taken' | 'skipped') => {
-    const nowStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' }).format(new Date());
-    setMedications((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status: action, actionTime: nowStr } : item,
-      ),
-    );
+  const handleReadScheduleAloud = () => {
+    const pendingMeds = medications.filter((m) => m.status === 'pending');
+    if (pendingMeds.length === 0) {
+      speakText('All scheduled medicines have been taken for today. Wonderful job!');
+      return;
+    }
+    const textToRead = `Today's remaining medicines are: ${pendingMeds
+      .map((m) => `${m.name}, ${m.dosage}, scheduled at ${m.times.join(' and ')}`)
+      .join('. ')}.`;
+    speakText(textToRead);
   };
 
   const handleSimulatePillCheck = () => {
@@ -159,13 +129,68 @@ export function App(): React.JSX.Element {
   };
 
   return (
-    <>
+    <div className={isElderMode ? 'elder-mode-root' : ''}>
+      {showSosAlert && (
+        <aside
+          role="alert"
+          style={{
+            background: '#b91c1c',
+            color: '#ffffff',
+            padding: '16px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <strong>🚨 EMERGENCY SAFETY ALERT:</strong> Potential emergency language detected. Call{' '}
+            <a href="tel:112" style={{ color: '#fef08a', textDecoration: 'underline', fontWeight: 800 }}>
+              112 (Emergency)
+            </a>{' '}
+            or visit the nearest hospital emergency room immediately.
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSosAlert(false)}
+            style={{ background: '#ffffff', color: '#b91c1c', border: 'none', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Acknowledge
+          </button>
+        </aside>
+      )}
+
       <header className="site-header">
         <a className="brand" href="#main" aria-label="Sanjeevani Elder Care Home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>Sanjeevani</span>
         </a>
+
         <div className="header-controls">
+          <button
+            type="button"
+            className="chip"
+            style={{
+              background: isElderMode ? '#11645b' : '#f0f7f4',
+              color: isElderMode ? '#ffffff' : '#11645b',
+              fontWeight: 700,
+            }}
+            onClick={toggleElderMode}
+            aria-pressed={isElderMode}
+          >
+            {isElderMode ? '👓 Elder Mode: ON' : '👓 Large Text'}
+          </button>
+
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setIsCircleModalOpen(true)}
+            aria-label="View Care Circle Directory"
+          >
+            👥 Care Circle
+          </button>
+
           <label htmlFor="role-select" className="role-badge">
             <span>Role:</span>
             <select
@@ -180,8 +205,9 @@ export function App(): React.JSX.Element {
               <option value="family">Family (Rohan)</option>
             </select>
           </label>
+
           <span className="status-pill" role="status">
-            Offline Demo Mode
+            Offline Demo
           </span>
         </div>
       </header>
@@ -202,7 +228,7 @@ export function App(): React.JSX.Element {
             onClick={() => setActiveTab('medications')}
             aria-selected={activeTab === 'medications'}
           >
-            💊 Medication Schedule ({medications.filter((m) => m.status === 'taken').length}/{medications.length})
+            💊 Medication Schedule ({adherenceScore.taken}/{adherenceScore.total})
           </button>
           <button
             type="button"
@@ -210,7 +236,7 @@ export function App(): React.JSX.Element {
             onClick={() => setActiveTab('appointments')}
             aria-selected={activeTab === 'appointments'}
           >
-            🗓️ Appointments ({INITIAL_APPOINTMENTS.length})
+            🗓️ Appointments ({appointments.length})
           </button>
           <button
             type="button"
@@ -306,17 +332,42 @@ export function App(): React.JSX.Element {
 
         {activeTab === 'medications' && (
           <section className="card" aria-labelledby="med-title">
-            <h1 id="med-title" className="card-title">Daily Medication Routine</h1>
-            <p className="card-subtitle">
-              Shared elder routine. Caregivers and elders can log taken doses in real-time.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h1 id="med-title" className="card-title" style={{ margin: 0 }}>Daily Medication Routine</h1>
+                <p className="card-subtitle" style={{ margin: '4px 0 0' }}>
+                  Today's Adherence: <strong>{adherenceScore.percentage}%</strong> ({adherenceScore.taken} of {adherenceScore.total} doses taken)
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={handleReadScheduleAloud}
+                  style={{ background: '#eaf5f1', color: '#11645b', fontWeight: 700 }}
+                  aria-label="Read daily medicine routine aloud"
+                >
+                  🔊 Listen Aloud
+                </button>
+                {(role === 'elder' || role === 'caretaker') && (
+                  <button
+                    type="button"
+                    className="send-button"
+                    style={{ padding: '8px 16px', fontSize: '14px' }}
+                    onClick={() => setIsMedModalOpen(true)}
+                  >
+                    + Add Medication
+                  </button>
+                )}
+              </div>
+            </div>
 
             <div className="med-list">
               {medications.map((item) => (
                 <div key={item.id} className="med-item">
                   <div className="med-info">
                     <h3>{item.name} — <span style={{ fontWeight: 400 }}>{item.dosage}</span></h3>
-                    <p>Scheduled at: <strong>{item.time}</strong> daily</p>
+                    <p>Scheduled at: <strong>{item.times.join(', ')}</strong> • {item.notes}</p>
                   </div>
                   <div className="med-actions">
                     {item.status === 'taken' && (
@@ -330,7 +381,7 @@ export function App(): React.JSX.Element {
                         <button
                           type="button"
                           className="btn-taken"
-                          onClick={() => handleMedicationAction(item.id, 'taken')}
+                          onClick={() => logDose(item.id, 'taken')}
                           aria-label={`Mark ${item.name} as taken`}
                         >
                           Mark Taken
@@ -338,12 +389,22 @@ export function App(): React.JSX.Element {
                         <button
                           type="button"
                           className="btn-skip"
-                          onClick={() => handleMedicationAction(item.id, 'skipped')}
+                          onClick={() => logDose(item.id, 'skipped')}
                           aria-label={`Mark ${item.name} as skipped`}
                         >
                           Skip
                         </button>
                       </>
+                    )}
+                    {(role === 'elder' || role === 'caretaker') && (
+                      <button
+                        type="button"
+                        onClick={() => deleteMedication(item.id)}
+                        aria-label={`Delete ${item.name}`}
+                        style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', padding: '6px' }}
+                      >
+                        🗑️
+                      </button>
                     )}
                   </div>
                 </div>
@@ -354,18 +415,40 @@ export function App(): React.JSX.Element {
 
         {activeTab === 'appointments' && (
           <section className="card" aria-labelledby="appt-title">
-            <h1 id="appt-title" className="card-title">Upcoming Appointments</h1>
-            <p className="card-subtitle">
-              Care-circle appointments and specialist clinic checkups.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h1 id="appt-title" className="card-title" style={{ margin: 0 }}>Upcoming Appointments</h1>
+                <p className="card-subtitle" style={{ margin: '4px 0 0' }}>
+                  Care-circle appointments and specialist clinic checkups.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="send-button"
+                style={{ padding: '8px 16px', fontSize: '14px' }}
+                onClick={() => setIsApptModalOpen(true)}
+              >
+                + Schedule Appointment
+              </button>
+            </div>
 
             <div>
-              {INITIAL_APPOINTMENTS.map((item) => (
-                <div key={item.id} className="appt-item">
-                  <h3>{item.doctor} — <span style={{ color: '#1b5e52' }}>{item.specialty}</span></h3>
-                  <p><strong>Time:</strong> {item.dateTime}</p>
-                  <p><strong>Location:</strong> {item.location}</p>
-                  <p style={{ marginTop: '8px', color: '#385650' }}>{item.notes}</p>
+              {appointments.map((item) => (
+                <div key={item.id} className="appt-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3>{item.doctorName} — <span style={{ color: '#1b5e52' }}>{item.specialty}</span></h3>
+                    <p><strong>Time:</strong> {item.dateTime.replace('T', ' ')}</p>
+                    <p><strong>Location:</strong> {item.location}</p>
+                    <p style={{ marginTop: '8px', color: '#385650' }}>{item.notes}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteAppointment(item.id)}
+                    aria-label={`Cancel appointment with ${item.doctorName}`}
+                    style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', padding: '6px' }}
+                  >
+                    🗑️
+                  </button>
                 </div>
               ))}
             </div>
@@ -435,6 +518,20 @@ export function App(): React.JSX.Element {
           </p>
         </footer>
       </main>
-    </>
+
+      {/* Feature Modals Foundation */}
+      <MedicationModal isOpen={isMedModalOpen} onClose={() => setIsMedModalOpen(false)} />
+      <AppointmentModal isOpen={isApptModalOpen} onClose={() => setIsApptModalOpen(false)} />
+      <CareCircleModal isOpen={isCircleModalOpen} onClose={() => setIsCircleModalOpen(false)} />
+    </div>
+  );
+}
+
+/** Root App with CareProvider. */
+export function App(): React.JSX.Element {
+  return (
+    <CareProvider>
+      <SanjeevaniApp />
+    </CareProvider>
   );
 }

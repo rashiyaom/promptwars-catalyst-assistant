@@ -413,3 +413,32 @@ a { color: inherit; }
   .chat-input-form { flex-direction: column; }
   .message-bubble { max-width: 95%; }
 }
+
+/* Elder Accessibility High-Contrast & Large-Text Mode */
+.elder-mode-root {
+  font-size: 1.15rem;
+}
+.elder-mode-root .brand {
+  font-size: 26px;
+}
+.elder-mode-root .tab-button {
+  font-size: 18px;
+  padding: 12px 20px;
+}
+.elder-mode-root .card-title {
+  font-size: 28px;
+}
+.elder-mode-root .chat-input {
+  font-size: 18px;
+  padding: 16px 20px;
+}
+.elder-mode-root .btn-taken,
+.elder-mode-root .btn-skip {
+  font-size: 16px;
+  padding: 10px 20px;
+}
+.elder-mode-root .message-bubble {
+  font-size: 18px;
+  line-height: 1.6;
+}
+
