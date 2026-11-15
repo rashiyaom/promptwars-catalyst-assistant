@@ -5,6 +5,8 @@ import {
   doc,
   getDocs,
   orderBy,
+  limit,
+  where,
   query,
   Timestamp,
   updateDoc,
@@ -48,7 +50,7 @@ export async function listDoseLogs(profileId: string): Promise<DoseLog[]> {
   const clients = getFirebaseClients();
   if (!clients) return [];
   const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
-  const result = await getDocs(query(reference, orderBy('scheduledFor', 'desc')));
+  const result = await getDocs(query(reference, where('scheduledFor', '>=', Timestamp.fromMillis(Date.now() - 8 * 86400000)), orderBy('scheduledFor', 'desc'), limit(1000)));
   return result.docs.map((item) => {
     const data = item.data();
     return {

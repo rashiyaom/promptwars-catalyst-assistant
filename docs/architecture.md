@@ -1,3 +1,5 @@
+> Latest email implementation: direct Brevo M2M integration replaces the Trigger Email queue described below. See [email and cost setup](email-cost-setup.md) for current status and limits.
+
 # Current account, Tavus and email setup
 
 The public page and login contain no prefilled patient data. The local .env enables Firebase sign-in. New verified accounts begin with no profiles; create a profile, add your own medicines and appointments, then invite caregivers or doctors. Backend Functions and App Check must be configured before profile creation works.

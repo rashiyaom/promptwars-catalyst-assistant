@@ -7,7 +7,7 @@ import { nextSnoozeTime } from '../lib/tausPolicy.js';
 const database = getFirestore(getApps()[0] ?? initializeApp());
 const inputSchema = z.object({ profileId: z.string().min(1).max(128).regex(/^[^/]+$/), doseId: z.string().min(1).max(256).regex(/^[^/]+$/) }).strict();
 /** A 'not yet' answer schedules a bounded follow-up, never moves the missed-dose deadline. */
-export const snoozeDose = onCall({ region: 'us-central1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', maxInstances: 10 }, async (request) => {
+export const snoozeDose = onCall({ region: 'us-central1', enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true', minInstances: 0, maxInstances: 2 }, async (request) => {
   const identity = requireIdentity(request);
   const parsed = inputSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError('invalid-argument', 'Invalid dose.');

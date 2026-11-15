@@ -9,21 +9,22 @@ import {
 } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { brevoCredentials } from './brevo.js';
 import { deliverEscalation } from './escalationDelivery.js';
 import { loadFunctionConfig } from '../config.js';
 import { logInfo } from '../lib/logger.js';
 
 const adminApp = getApps()[0] ?? initializeApp();
 const database = getFirestore(adminApp);
-const REMINDER_SCHEDULE = 'every 5 minutes';
+const REMINDER_SCHEDULE = 'every 10 minutes';
 const REMINDER_WINDOW_MS = 15 * 60 * 1000;
 const APPOINTMENT_DAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const APPOINTMENT_SOON_WINDOW_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_GRACE_MINUTES = 30;
 const MAX_REMINDER_RETRIES = 3;
 const SENDING_LEASE_MS = 2 * 60 * 1000;
-const MAX_DOSES_PER_SWEEP = 400;
-const MAX_APPOINTMENTS_PER_SWEEP = 200;
+const MAX_DOSES_PER_SWEEP = 100;
+const MAX_APPOINTMENTS_PER_SWEEP = 50;
 const MAX_FCM_TOKENS_PER_REQUEST = 500;
 
 type ReminderKind = 'upcoming-dose' | 'missed-dose' | 'appointment-day-before' | 'appointment-two-hours';
@@ -220,6 +221,10 @@ export const sendScheduledCareReminders = onSchedule({
   timeZone: 'Etc/UTC',
   region: 'us-central1',
   maxInstances: 1,
+  minInstances: 0,
+  memory: '256MiB',
+  timeoutSeconds: 120,
+  secrets: [brevoCredentials],
 }, async () => {
   const now = Date.now();
   const upcomingLimit = Timestamp.fromMillis(now + REMINDER_WINDOW_MS);

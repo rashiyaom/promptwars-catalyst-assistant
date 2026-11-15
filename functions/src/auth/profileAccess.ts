@@ -11,7 +11,7 @@ const adminApp = getApps()[0] ?? initializeApp();
 const database = getFirestore(adminApp);
 const FUNCTION_OPTIONS = {
   region: 'us-central1',
-  maxInstances: 10,
+  minInstances: 0, maxInstances: 2,
   enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true',
 };
 const MAX_PASSCODE_FAILURES = 5;

@@ -36,7 +36,7 @@ export function TausAgent({ onEmergency }: { readonly onEmergency: () => void })
     mounted.current = true;
     const fetchAlerts = () => { void listAlertDeliveries(activeProfile.id).then((value) => { if (mounted.current) { setDeliveries(value); setAlertError(false); } }).catch(() => { if (mounted.current) setAlertError(true); }); };
     fetchAlerts();
-    const interval = window.setInterval(() => { fetchAlerts(); if (!isDemo && !locked.current) void refresh.current(); }, 60_000);
+    const interval = window.setInterval(() => { if (document.hidden) return; fetchAlerts(); if (!isDemo && !locked.current) void refresh.current(); }, 300_000);
     return () => { mounted.current = false; handsFree.current = false; speakingVersion.current += 1; recognition.current?.abort(); window.clearInterval(interval); if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
   }, [activeProfile.id, isDemo]);
   const say = (text: string) => {
