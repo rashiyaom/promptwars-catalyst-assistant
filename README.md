@@ -21,12 +21,12 @@ The product helps organize care information. It does not diagnose, prescribe, re
 | Accessible web workspace | Fully interactive; accessible care assistant chat, medication schedule adherence, appointments, and pill label OCR demo |
 | Assistant core | Typed intent and urgency rules, input checks, response filtering, short-term in-memory session history, and deterministic responses |
 | Offline behavior | Default mode requires no API key, Firebase project, or network service (Zero-friction evaluator testing) |
-| Shared care profiles and role-specific access | Multi-role selector (Elder, Caregiver, Family) wired in UI; callable profile creation and hashed passcode joining implemented |
-| Medication schedules and adherence logs | Interactive daily schedule with real-time Take/Skip action logging; Firestore service and shared model implemented |
-| Appointment management and reminders | Appointment coordination view wired; Firestore read/add methods and scheduled reminders implemented |
+| Shared care profiles and role-specific access | Verified email sign-in/registration, profile creation/joining and switching; server-derived live roles and a separate demo role selector |
+| Medication schedules and adherence logs | Morning/afternoon/evening/night timeline, full schedule editing, independent dose logging, and a seven-day adherence calendar |
+| Appointment management and reminders | Timezone-aware appointments, preparation checklists, directions, Google Calendar links and offline iCal downloads; scheduled reminders implemented |
 | Email and push delivery | Resend and FCM delivery path with bounded retries implemented |
 | Pill-strip label check | Firebase AI Logic interactive verification demo with consent boundary and visible package text comparison |
-| Automated test suite | 35 automated unit and integration tests passing across decision engine, guardrails, agent turns, and schemas |
+| Automated test suite | 57 offline tests across the assistant, schemas, profile validation, dose scheduling, calendar exports, and frontend rendering |
 | Hosting deployment | Firebase Hosting configuration serves the built React web app |
 
 The offline core and web workspace provide a complete, safe foundation for elder care coordination.
@@ -55,7 +55,7 @@ The offline core and web workspace provide a complete, safe foundation for elder
 | Email and push | Resend and Firebase Cloud Messaging |
 | AI verification | Firebase AI Logic with Gemini for visible package text only |
 | Abuse protection | Firebase App Check with reCAPTCHA Enterprise |
-| Tests | Vitest and Firebase Emulator Suite (test suites to be added) |
+| Tests | Vitest offline tests; Firebase Emulator Suite available for live integration review |
 
 ## 5. Architecture
 
@@ -172,10 +172,23 @@ Start `npm run dev` in another terminal. The emulator project uses the demo ID `
 | `npm run emulators` | Start Firebase Auth, Firestore, and Functions emulators |
 | `npm run typecheck` | Type-check configured workspaces |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run Vitest automated test suite (35 unit and integration tests passing) |
+| `npm test` | Run 57 offline Vitest tests, including all 35 original tests |
 | `npm run build` | Type-check and build the web and Functions workspaces |
 | `npm run deploy` | Build and deploy Hosting, Firestore rules/indexes, and Functions to the selected Firebase project |
 | `npm run deploy:hosting` | Build and deploy only the React app to Firebase Hosting |
+
+### Frontend feature walkthrough
+
+- **Medication Schedule:** view each dose in Morning (05:00–11:59), Afternoon (12:00–16:59), Evening (17:00–20:59), or Night. Times and dates use the active profile’s timezone. Marking one dose taken does not mark the medication’s other doses. The seven-day calendar distinguishes taken, missed, skipped, pending, and absent records.
+- **Edit schedules:** the All Medication Schedules section includes paused and non-daily schedules. Edit preserves multiple times, selected weekdays, interval length, date limits, notes, and active status. Family members can view medications; elder/caretaker members can change schedules and log doses.
+- **Appointments:** enter clinician-provided preparation instructions one per line. Checkmarks are saved only on this device and scoped to account, profile, and appointment; they are not shared with other members. Never infer fasting requirements from an appointment type. Calendar exports preserve the appointment instant and assume a clearly labeled 30-minute duration. The `.ics` download works offline; Google Calendar and directions links need internet.
+- **Emergency help:** use the always-visible SOS control or an urgent chat prompt to open the drawer. Country-labeled phone links open the device dialer. The care-circle SMS/push broadcast is always a simulation, including in Firebase mode; it does not contact anyone or dispatch help. The default demo lists Priya and Rohan.
+- **Account and Care Circle:** in Firebase mode, register, verify the emailed link, then sign in. Create a profile with an elder name, display name, and IANA timezone. Save its ID and three generated role codes before dismissing the result. Joining calls the existing server verifier; live roles cannot be selected locally. Use the profile selector to switch among memberships.
+- **Offline demo:** no network or account is needed. Sample schedules/history are relative to the current date. Create additional sample profiles, switch among them, and try their generated role codes during the session. Demo data and codes are held in memory and reset on reload; checklist checkmarks remain device-local when storage is available.
+
+Live dose logs are created by the existing hourly backend generator. New schedules show **Awaiting server schedule** until the corresponding log exists; use **Refresh doses** to load it. The UI updates the actual dose-log ID and does not attempt forbidden client-side log creation. Live load/write failures are shown explicitly; demo records are never substituted into a signed-in profile.
+
+Dialogs use native modal focus containment and restore the initiating control’s focus. Controls have visible focus states and at least 44px targets, with responsive layout, large-text mode, and live status/error regions. Automated rendering checks do not replace browser keyboard/screen-reader review or live Firebase integration testing.
 
 ## 8. Environment variables
 
@@ -238,16 +251,16 @@ Scheduled reminders use Cloud Scheduler. Confirm the required APIs and billing s
 | Layered architecture | UI, agent orchestration, decision engine, guardrails, tools, and memory are separate modules |
 | Security guardrails | Zod input schemas, prompt-injection checks, PII redaction, membership and role-based Firestore rules |
 | Offline mode | Deterministic mock response tool; no model key is required |
-| Testing and verification | 35 automated unit and integration tests passing with Vitest across decision engine, guardrails, agent turns, and schemas |
+| Testing and verification | 57 offline Vitest tests covering the core, schemas, profile validation, timezone-aware schedules, calendar exports, and frontend rendering |
 | Accessibility | Semantic landmarks, responsive layout, readable sizing, and visible focus treatment in the starter UI |
 | Developer experience | npm workspaces, strict TypeScript, `.env.example`, and ignored build/cache artifacts |
 
 ## 13. Next implementation milestones
 
-1. Connect sign-in and profile creation/join flows to accessible screens.
-2. Add medication editing, adherence views, and appointment editing.
+1. Complete end-to-end Firebase emulator and live-service verification of account and membership flows.
+2. Add appointment editing and shared checklist completion if required.
 3. Configure a Firebase project, App Check, FCM VAPID, and Resend secrets.
-4. Add unit and security-boundary tests for the agent, schedule generation, reminders, and Firestore rules; reach at least 85% coverage.
+4. Expand backend reminder and Firestore security-rule coverage; measure the 85% coverage target.
 5. Complete keyboard, screen-reader, and live-service reviews.
 
 ## 14. Limitations

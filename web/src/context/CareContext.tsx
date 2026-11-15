@@ -1,27 +1,40 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import type { Medication, MedicationFrequency } from '@sanjeevani/shared/types/medication';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import type { User } from 'firebase/auth';
+import type { Medication } from '@sanjeevani/shared/types/medication';
+import type { DoseLog } from '@sanjeevani/shared/types/doseLog';
 import type { Appointment } from '@sanjeevani/shared/types/appointment';
 import type { CareMember, CareProfile, MemberRole } from '@sanjeevani/shared/types/profile';
-import type { MedicationInput } from '@sanjeevani/shared/schemas/medication';
-import type { AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
+import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
+import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
 import { getFirebaseClients } from '../lib/firebase.js';
+import { subscribeToAuth } from '../features/auth/authService.js';
 import * as medService from '../features/medications/medicationService.js';
 import * as apptService from '../features/appointments/appointmentService.js';
 import * as profService from '../features/profiles/profileService.js';
+import { addDays, localDate, scheduledDoses } from '../features/medications/schedule.js';
+import { DEFAULT_PROFILE, INITIAL_APPOINTMENTS, INITIAL_MEDICATIONS, INITIAL_MEMBERS } from './demoData.js';
 
-export interface ExtendedMedication extends Medication {
-  readonly status?: 'pending' | 'taken' | 'skipped';
-  readonly actionTime?: string;
+interface ProfileData {
+  activeProfile: CareProfile;
+  role: MemberRole;
+  medications: Medication[];
+  appointments: Appointment[];
+  careMembers: CareMember[];
+  doseLogs: DoseLog[];
 }
 
-export interface CareContextValue {
-  readonly activeProfile: CareProfile;
-  readonly role: MemberRole;
+export interface CareContextValue extends ProfileData {
+  readonly user: User | null;
+  readonly isDemo: boolean;
   readonly isElderMode: boolean;
   readonly isLiveConnected: boolean;
-  readonly medications: readonly ExtendedMedication[];
-  readonly appointments: readonly Appointment[];
-  readonly careMembers: readonly CareMember[];
+  readonly loading: boolean;
+  readonly dataError: string | null;
+  readonly profiles: readonly CareProfile[];
+  readonly today: string;
+  readonly todayDoses: readonly DoseLog[];
+  readonly canManageMedication: boolean;
+  readonly canEdit: boolean;
   readonly adherenceScore: { readonly taken: number; readonly total: number; readonly percentage: number };
   setRole: (role: MemberRole) => void;
   toggleElderMode: () => void;
@@ -29,259 +42,181 @@ export interface CareContextValue {
   addMedication: (input: MedicationInput) => Promise<void>;
   updateMedication: (id: string, input: MedicationInput) => Promise<void>;
   deleteMedication: (id: string) => Promise<void>;
-  logDose: (id: string, status: 'taken' | 'skipped') => Promise<void>;
+  logDose: (dose: DoseLog, status: 'taken' | 'skipped') => Promise<void>;
   addAppointment: (input: AppointmentInput) => Promise<void>;
   deleteAppointment: (id: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  refreshProfiles: (preferredId?: string) => Promise<void>;
+  switchProfile: (id: string) => Promise<void>;
+  createDemoProfile: (elderName: string, timezone: string, displayName: string) => CareProfile;
 }
 
-const DEFAULT_PROFILE: CareProfile = {
-  id: 'profile-dadaji-primary',
-  elderName: 'Dadaji (Shri Rameshwar)',
-  timezone: 'Asia/Kolkata',
-  graceMinutes: 30,
-};
+const EMPTY_PROFILE: CareProfile = { id: '', elderName: 'Choose a care profile', timezone: 'Asia/Kolkata', graceMinutes: 30 };
+const EMPTY_DATA: ProfileData = { activeProfile: EMPTY_PROFILE, role: 'family', medications: [], appointments: [], careMembers: [], doseLogs: [] };
 
-const INITIAL_MEMBERS: CareMember[] = [
-  {
-    uid: 'user-elder-1',
-    role: 'elder',
-    displayName: 'Rameshwar Sharma (Dadaji)',
-    email: 'rameshwar.sharma@example.com',
-    joinedAt: '2026-11-01T08:00:00Z',
-  },
-  {
-    uid: 'user-caretaker-1',
-    role: 'caretaker',
-    displayName: 'Priya Sharma (Primary Caregiver)',
-    email: 'priya.care@example.com',
-    joinedAt: '2026-11-01T08:15:00Z',
-  },
-  {
-    uid: 'user-family-1',
-    role: 'family',
-    displayName: 'Rohan Sharma (Grandson)',
-    email: 'rohan.sharma@example.com',
-    joinedAt: '2026-11-02T10:30:00Z',
-  },
-];
-
-const INITIAL_MEDICATIONS: ExtendedMedication[] = [
-  {
-    id: 'med-1',
-    name: 'Amlodipine',
-    dosage: '5 mg oral tablet',
-    times: ['08:00'],
-    frequency: { type: 'daily' },
-    startDate: '2026-11-01',
-    endDate: null,
-    notes: 'Take after breakfast for blood pressure.',
-    active: true,
-    status: 'taken',
-    actionTime: '08:05 AM',
-  },
-  {
-    id: 'med-2',
-    name: 'Metformin',
-    dosage: '500 mg oral tablet',
-    times: ['13:00', '20:00'],
-    frequency: { type: 'daily' },
-    startDate: '2026-11-01',
-    endDate: null,
-    notes: 'Take with or right after meals for diabetes management.',
-    active: true,
-    status: 'pending',
-  },
-  {
-    id: 'med-3',
-    name: 'Atorvastatin',
-    dosage: '20 mg oral tablet',
-    times: ['21:00'],
-    frequency: { type: 'daily' },
-    startDate: '2026-11-01',
-    endDate: null,
-    notes: 'Take before bedtime for cholesterol.',
-    active: true,
-    status: 'pending',
-  },
-];
-
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'appt-1',
-    doctorName: 'Dr. Asha Sharma',
-    specialty: 'Cardiologist',
-    dateTime: '2026-11-20T10:30:00+05:30',
-    location: 'Apollo Care Center, Clinic 304',
-    notes: 'Routine blood pressure review. Bring 2-week BP tracking log.',
-  },
-  {
-    id: 'appt-2',
-    doctorName: 'Dr. Vikram Patel',
-    specialty: 'Ophthalmologist',
-    dateTime: '2026-12-05T15:00:00+05:30',
-    location: 'City Eye Hospital, 2nd Floor',
-    notes: 'Annual diabetic retinopathy eye checkup.',
-  },
-];
+/** Seed a labeled, deterministic sample week relative to the current profile date. */
+function demoData(): ProfileData {
+  const today = localDate(new Date(), DEFAULT_PROFILE.timezone);
+  const medications = INITIAL_MEDICATIONS.map((med) => ({ ...med, startDate: addDays(today, -30) }));
+  const doseLogs = Array.from({ length: 7 }, (_, index) => scheduledDoses(medications, addDays(today, index - 6), DEFAULT_PROFILE.timezone)
+    .map((dose, doseIndex): DoseLog => ({ ...dose, status: index === 6 ? 'pending' : (index + doseIndex) % 7 === 0 ? 'missed' : 'taken' }))).flat();
+  const appointments = INITIAL_APPOINTMENTS.map((appt, index) => ({ ...appt, dateTime: `${addDays(today, 5 + index * 14)}T10:30:00+05:30` }));
+  return { activeProfile: DEFAULT_PROFILE, role: 'elder', medications, appointments, careMembers: INITIAL_MEMBERS, doseLogs };
+}
 
 const CareContext = createContext<CareContextValue | null>(null);
 
+/** Observe Firebase identity and discard profile state on account changes. */
 export function CareProvider({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
-  const [activeProfile] = useState<CareProfile>(DEFAULT_PROFILE);
-  const [role, setRole] = useState<MemberRole>('elder');
-  const [isElderMode, setIsElderMode] = useState<boolean>(false);
-  const [medications, setMedications] = useState<ExtendedMedication[]>(INITIAL_MEDICATIONS);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [careMembers, setCareMembers] = useState<CareMember[]>(INITIAL_MEMBERS);
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => subscribeToAuth(setUser), []);
+  return <CareSession key={user?.emailVerified ? user.uid : 'signed-out'} user={user}>{children}</CareSession>;
+}
 
-  const clients = getFirebaseClients();
-  const isLiveConnected = Boolean(clients && !clients.auth.currentUser?.isAnonymous);
+/** Own profile-scoped data, preserving offline operation and server-enforced roles. */
+function CareSession({ children, user }: { readonly children: React.ReactNode; readonly user: User | null }): React.JSX.Element {
+  const isDemo = getFirebaseClients() === null;
+  const isLiveConnected = !isDemo && Boolean(user?.emailVerified && !user.isAnonymous);
+  const [data, setData] = useState<ProfileData>(() => isDemo ? demoData() : EMPTY_DATA);
+  const [profiles, setProfiles] = useState<CareProfile[]>(() => isDemo ? [DEFAULT_PROFILE] : []);
+  const [isElderMode, setIsElderMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const requestVersion = useRef(0);
+  const demoProfiles = useRef(new Map<string, ProfileData>());
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const { activeProfile, medications, doseLogs, role } = data;
+  const today = localDate(now, activeProfile.timezone);
+  const todayDoses = scheduledDoses(medications, today, activeProfile.timezone).map((dose) => doseLogs.find((log) => log.id === dose.id) ?? dose);
+  const taken = todayDoses.filter((dose) => dose.status === 'taken').length;
+  const canEdit = Boolean(activeProfile.id) && !loading && (isDemo || isLiveConnected);
+  const canManageMedication = canEdit && role !== 'family';
 
-  const refreshData = async (): Promise<void> => {
-    if (!clients || !clients.auth.currentUser) return;
-    try {
-      const [fetchedMeds, fetchedAppts, fetchedMembers] = await Promise.all([
-        medService.listMedications(activeProfile.id),
-        apptService.listAppointments(activeProfile.id),
-        profService.listCareMembers(activeProfile.id),
-      ]);
-      if (fetchedMeds.length > 0) setMedications(fetchedMeds);
-      if (fetchedAppts.length > 0) setAppointments(fetchedAppts);
-      if (fetchedMembers.length > 0) setCareMembers(fetchedMembers);
-    } catch (err) {
-      console.warn('Using offline data fallback:', err);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const switchProfile = async (id: string): Promise<void> => {
+    if (isDemo) {
+      demoProfiles.current.set(dataRef.current.activeProfile.id, dataRef.current);
+      const saved = demoProfiles.current.get(id);
+      if (saved) setData(saved);
+      return;
     }
+    const version = ++requestVersion.current;
+    setLoading(true);
+    setDataError(null);
+    setData(EMPTY_DATA);
+    try {
+      const [profile, memberRole, meds, appts, members, logs] = await Promise.all([
+        profService.getCareProfile(id), profService.getMyProfileRole(id), medService.listMedications(id),
+        apptService.listAppointments(id), profService.listCareMembers(id), medService.listDoseLogs(id),
+      ]);
+      if (!profile || !memberRole) throw new Error('This account does not have access to that profile.');
+      new Intl.DateTimeFormat('en', { timeZone: profile.timezone }).format();
+      if (version === requestVersion.current) setData({ activeProfile: profile, role: memberRole, medications: meds, appointments: appts, careMembers: members, doseLogs: logs });
+    } catch (error) {
+      if (version === requestVersion.current) setDataError(error instanceof Error ? error.message : 'Could not load profile. Please retry.');
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
+    }
+  };
+
+  const refreshProfiles = async (preferredId?: string): Promise<void> => {
+    if (!isLiveConnected) return;
+    setLoading(true);
+    setDataError(null);
+    try {
+      const found = await profService.listMyCareProfiles();
+      setProfiles(found);
+      const selected = found.find((profile) => profile.id === (preferredId ?? dataRef.current.activeProfile.id)) ?? found[0];
+      if (selected) await switchProfile(selected.id);
+      else setData(EMPTY_DATA);
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : 'Could not load care profiles. Please retry.');
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
-    if (isLiveConnected) {
-      void refreshData();
-    }
+    if (isLiveConnected) void refreshProfiles();
+    return () => { requestVersion.current += 1; };
   }, [isLiveConnected]);
 
-  const adherenceScore = useMemo(() => {
-    const total = medications.length;
-    const taken = medications.filter((m) => m.status === 'taken').length;
-    const percentage = total > 0 ? Math.round((taken / total) * 100) : 100;
-    return { taken, total, percentage };
-  }, [medications]);
-
-  const toggleElderMode = () => setIsElderMode((prev) => !prev);
-
+  /** Apply an async result only to the profile that initiated the operation. */
+  const changeData = (profileId: string, change: (previous: ProfileData) => ProfileData) => {
+    setData((previous) => previous.activeProfile.id === profileId ? change(previous) : previous);
+  };
+  const requireEdit = (medication = false) => {
+    if (!(medication ? canManageMedication : canEdit)) throw new Error('Select a profile with the required access before making changes.');
+  };
+  const addMedication = async (input: MedicationInput) => {
+    requireEdit(true);
+    const parsed = medicationInputSchema.parse(input);
+    const id = isDemo ? crypto.randomUUID() : await medService.addMedication(activeProfile.id, parsed);
+    changeData(activeProfile.id, (previous) => ({ ...previous, medications: [...previous.medications, { id, ...parsed }] }));
+  };
+  const updateMedication = async (id: string, input: MedicationInput) => {
+    requireEdit(true);
+    const parsed = medicationInputSchema.parse(input);
+    if (!isDemo) await medService.updateMedication(activeProfile.id, id, parsed);
+    changeData(activeProfile.id, (previous) => ({ ...previous, medications: previous.medications.map((item) => item.id === id ? { ...item, ...parsed } : item) }));
+  };
+  const deleteMedication = async (id: string) => {
+    requireEdit(true);
+    if (!isDemo) await medService.deleteMedication(activeProfile.id, id);
+    changeData(activeProfile.id, (previous) => ({ ...previous, medications: previous.medications.filter((item) => item.id !== id) }));
+  };
+  const logDose = async (dose: DoseLog, status: 'taken' | 'skipped') => {
+    requireEdit(true);
+    if (dose.status !== 'pending') throw new Error('This dose has already been recorded.');
+    if (!isDemo) await medService.logDose(activeProfile.id, dose.id, status);
+    const logged: DoseLog = { ...dose, status, loggedAt: new Date().toISOString(), loggedBy: user?.uid ?? 'demo-member' };
+    changeData(activeProfile.id, (previous) => ({ ...previous, doseLogs: [...previous.doseLogs.filter((item) => item.id !== dose.id), logged] }));
+  };
+  const addAppointment = async (input: AppointmentInput) => {
+    requireEdit();
+    const parsed = appointmentInputSchema.parse(input);
+    const id = isDemo ? crypto.randomUUID() : await apptService.addAppointment(activeProfile.id, parsed);
+    changeData(activeProfile.id, (previous) => ({ ...previous, appointments: [...previous.appointments, { id, ...parsed }].sort((a, b) => a.dateTime.localeCompare(b.dateTime)) }));
+  };
+  const deleteAppointment = async (id: string) => {
+    requireEdit();
+    if (!isDemo) await apptService.deleteAppointment(activeProfile.id, id);
+    changeData(activeProfile.id, (previous) => ({ ...previous, appointments: previous.appointments.filter((item) => item.id !== id) }));
+  };
+  const createDemoProfile = (elderName: string, timezone: string, displayName: string): CareProfile => {
+    if (!isDemo) throw new Error('Demo profiles are only available in offline mode.');
+    const profile = { id: crypto.randomUUID(), elderName, timezone, graceMinutes: 30 };
+    demoProfiles.current.set(activeProfile.id, dataRef.current);
+    const next: ProfileData = { ...EMPTY_DATA, activeProfile: profile, role: 'elder', careMembers: [{ uid: 'demo-member', role: 'elder', displayName, email: '', joinedAt: new Date().toISOString() }] };
+    demoProfiles.current.set(profile.id, next);
+    setProfiles((previous) => [...previous, profile]);
+    setData(next);
+    return profile;
+  };
   const speakText = (text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9; // Slightly slower pace for elders
-    utterance.pitch = 1.0;
+    utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
   };
 
-  const addMedication = async (input: MedicationInput): Promise<void> => {
-    if (isLiveConnected) {
-      const newId = await medService.addMedication(activeProfile.id, input);
-      setMedications((prev) => [...prev, { id: newId, ...input, status: 'pending' }]);
-    } else {
-      const newMed: ExtendedMedication = {
-        id: `med-${Date.now()}`,
-        name: input.name,
-        dosage: input.dosage,
-        times: input.times,
-        frequency: input.frequency as MedicationFrequency,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        notes: input.notes,
-        active: input.active,
-        status: 'pending',
-      };
-      setMedications((prev) => [...prev, newMed]);
-    }
-  };
-
-  const updateMedication = async (id: string, input: MedicationInput): Promise<void> => {
-    if (isLiveConnected) {
-      await medService.updateMedication(activeProfile.id, id, input);
-    }
-    setMedications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...input } : item)),
-    );
-  };
-
-  const deleteMedication = async (id: string): Promise<void> => {
-    if (isLiveConnected) {
-      await medService.deleteMedication(activeProfile.id, id);
-    }
-    setMedications((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const logDose = async (id: string, status: 'taken' | 'skipped'): Promise<void> => {
-    const nowTime = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' }).format(new Date());
-    if (isLiveConnected) {
-      await medService.logDose(activeProfile.id, id, status);
-    }
-    setMedications((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status, actionTime: nowTime } : item,
-      ),
-    );
-  };
-
-  const addAppointment = async (input: AppointmentInput): Promise<void> => {
-    if (isLiveConnected) {
-      const newId = await apptService.addAppointment(activeProfile.id, input);
-      setAppointments((prev) => [...prev, { id: newId, ...input }]);
-    } else {
-      const newAppt: Appointment = {
-        id: `appt-${Date.now()}`,
-        doctorName: input.doctorName,
-        specialty: input.specialty,
-        dateTime: input.dateTime,
-        location: input.location,
-        notes: input.notes,
-      };
-      setAppointments((prev) => [...prev, newAppt]);
-    }
-  };
-
-  const deleteAppointment = async (id: string): Promise<void> => {
-    if (isLiveConnected) {
-      await apptService.deleteAppointment(activeProfile.id, id);
-    }
-    setAppointments((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const contextValue = useMemo<CareContextValue>(
-    () => ({
-      activeProfile,
-      role,
-      isElderMode,
-      isLiveConnected,
-      medications,
-      appointments,
-      careMembers,
-      adherenceScore,
-      setRole,
-      toggleElderMode,
-      speakText,
-      addMedication,
-      updateMedication,
-      deleteMedication,
-      logDose,
-      addAppointment,
-      deleteAppointment,
-      refreshData,
-    }),
-    [activeProfile, role, isElderMode, isLiveConnected, medications, appointments, careMembers, adherenceScore],
-  );
-
-  return <CareContext.Provider value={contextValue}>{children}</CareContext.Provider>;
+  return <CareContext.Provider value={{ ...data, user, isDemo, isLiveConnected, isElderMode, loading, dataError, profiles, today, todayDoses, canEdit, canManageMedication,
+    adherenceScore: { taken, total: todayDoses.length, percentage: todayDoses.length ? Math.round(taken / todayDoses.length * 100) : 0 },
+    setRole: (next) => { if (isDemo) setData((previous) => ({ ...previous, role: next })); },
+    toggleElderMode: () => setIsElderMode((previous) => !previous), speakText,
+    addMedication, updateMedication, deleteMedication, logDose, addAppointment, deleteAppointment,
+    refreshData: () => switchProfile(activeProfile.id), refreshProfiles, switchProfile, createDemoProfile,
+  }}>{children}</CareContext.Provider>;
 }
 
+/** Access care data inside the provider. */
 export function useCare(): CareContextValue {
   const context = useContext(CareContext);
-  if (!context) {
-    throw new Error('useCare must be used within a CareProvider');
-  }
+  if (!context) throw new Error('useCare must be used within a CareProvider');
   return context;
 }

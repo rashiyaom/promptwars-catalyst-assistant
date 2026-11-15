@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { addDays, zonedInstant } from '../../features/medications/schedule.js';
 import { Modal } from '../common/Modal.js';
 import { useCare } from '../../context/CareContext.js';
 import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
@@ -10,10 +11,10 @@ export interface AppointmentModalProps {
 
 /** Base foundation modal for scheduling a doctor visit or clinic checkup. */
 export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): React.JSX.Element {
-  const { addAppointment } = useCare();
+  const { addAppointment, activeProfile, today } = useCare();
   const [doctorName, setDoctorName] = useState('');
   const [specialty, setSpecialty] = useState('General Physician');
-  const [dateTimeLocal, setDateTimeLocal] = useState('2026-11-25T10:30');
+  const [dateTimeLocal, setDateTimeLocal] = useState(`${addDays(today, 7)}T10:30`);
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -23,8 +24,9 @@ export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): Re
     e.preventDefault();
     setValidationError(null);
 
-    // Convert local datetime to ISO with offset
-    const dateObj = new Date(dateTimeLocal);
+    const [date, time] = dateTimeLocal.split('T');
+    const dateObj = zonedInstant(date, time, activeProfile.timezone);
+    if (!dateObj) { setValidationError('Choose a valid date and time in the profile timezone.'); return; }
     const isoDateTime = dateObj.toISOString();
 
     const inputData: AppointmentInput = {
@@ -56,7 +58,7 @@ export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): Re
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Schedule Doctor Appointment">
+    <Modal isOpen={isOpen} onClose={onClose} title="Schedule Doctor Appointment" dismissible={!isSubmitting}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {validationError && (
           <div
@@ -90,7 +92,7 @@ export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): Re
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div className="form-grid">
           <div>
             <label htmlFor="appt-specialty" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
               Specialty *
@@ -108,7 +110,7 @@ export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): Re
           </div>
           <div>
             <label htmlFor="appt-date" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-              Date & Time *
+              Date & Time ({activeProfile.timezone}) *
             </label>
             <input
               id="appt-date"
@@ -139,13 +141,14 @@ export function AppointmentModal({ isOpen, onClose }: AppointmentModalProps): Re
 
         <div>
           <label htmlFor="appt-notes" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-            Preparation Notes & Reminders
+            Prep Checklist — one instruction per line
           </label>
           <textarea
             id="appt-notes"
             className="chat-input"
             style={{ width: '100%', minHeight: '70px', resize: 'vertical' }}
-            placeholder="e.g. Bring fasting blood sugar test and previous prescriptions."
+            placeholder="e.g. Bring recent ECG report. Only add fasting instructions provided by your clinician."
+            maxLength={1000}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />

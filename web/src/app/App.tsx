@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { runAgent, type AgentResponse } from '@sanjeevani/core';
 import { CareProvider, useCare } from '../context/CareContext.js';
 import { MedicationModal } from '../components/medications/MedicationModal.js';
 import { AppointmentModal } from '../components/appointments/AppointmentModal.js';
 import { CareCircleModal } from '../components/careCircle/CareCircleModal.js';
+import { MedicationTimeline } from '../components/medications/MedicationTimeline.js';
+import { AppointmentCard } from '../components/appointments/AppointmentCard.js';
+import { AuthBanner } from '../components/auth/AuthBanner.js';
+import { EmergencyDrawer } from '../components/emergency/EmergencyDrawer.js';
+import type { Medication } from '@sanjeevani/shared/types/medication';
 import type { MemberRole } from '@sanjeevani/shared/types/profile';
 
 interface ChatMessage {
@@ -28,11 +33,14 @@ function SanjeevaniApp(): React.JSX.Element {
     medications,
     appointments,
     adherenceScore,
-    logDose,
-    deleteMedication,
-    deleteAppointment,
+    todayDoses,
+    isDemo,
+    isLiveConnected,
+    canManageMedication,
+    canEdit,
   } = useCare();
 
+  const [chatSessionId] = useState(() => crypto.randomUUID());
   const [activeTab, setActiveTab] = useState<ActiveTab>('assistant');
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -40,6 +48,7 @@ function SanjeevaniApp(): React.JSX.Element {
 
   // Modals state
   const [isMedModalOpen, setIsMedModalOpen] = useState(false);
+  const [editingMedication, setEditingMedication] = useState<Medication | undefined>();
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
   const [isCircleModalOpen, setIsCircleModalOpen] = useState(false);
 
@@ -57,7 +66,18 @@ function SanjeevaniApp(): React.JSX.Element {
     },
   ]);
 
+  const currentProfile = useRef(activeProfile.id);
+  currentProfile.current = activeProfile.id;
+  useEffect(() => {
+    setMessages([{ id: 'welcome', sender: 'assistant', text: `Namaste! I am Sanjeevani, caring for ${activeProfile.elderName}. How can I help today?` }]);
+    setIsMedModalOpen(false);
+    setIsApptModalOpen(false);
+    setShowSosAlert(false);
+    setIsProcessing(false);
+  }, [activeProfile.id, activeProfile.elderName]);
+
   const handleSendMessage = async (queryText?: string) => {
+    const profileAtStart = activeProfile.id;
     const textToSend = (queryText ?? inputQuery).trim();
     if (!textToSend || isProcessing) return;
 
@@ -73,10 +93,11 @@ function SanjeevaniApp(): React.JSX.Element {
 
     try {
       const response: AgentResponse = await runAgent({
-        sessionId: 'elder-session-active',
+        sessionId: `${chatSessionId}:${activeProfile.id}:${role}`,
         message: textToSend,
       });
 
+      if (currentProfile.current !== profileAtStart) return;
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
         sender: 'assistant',
@@ -91,6 +112,7 @@ function SanjeevaniApp(): React.JSX.Element {
         setShowSosAlert(true);
       }
     } catch {
+      if (currentProfile.current !== profileAtStart) return;
       setMessages((prev) => [
         ...prev,
         {
@@ -101,20 +123,21 @@ function SanjeevaniApp(): React.JSX.Element {
         },
       ]);
     } finally {
-      setIsProcessing(false);
+      if (currentProfile.current === profileAtStart) setIsProcessing(false);
     }
   };
 
   const handleReadScheduleAloud = () => {
-    const pendingMeds = medications.filter((m) => m.status === 'pending');
-    if (pendingMeds.length === 0) {
-      speakText('All scheduled medicines have been taken for today. Wonderful job!');
+    const pendingDoses = todayDoses.filter((dose) => dose.status === 'pending');
+    if (!pendingDoses.length) {
+      speakText(todayDoses.length ? 'No pending doses remain in today’s schedule.' : 'No doses are scheduled for today.');
       return;
     }
-    const textToRead = `Today's remaining medicines are: ${pendingMeds
-      .map((m) => `${m.name}, ${m.dosage}, scheduled at ${m.times.join(' and ')}`)
-      .join('. ')}.`;
-    speakText(textToRead);
+    speakText(`Today's pending medicines are: ${pendingDoses.map((dose) => {
+      const med = medications.find((item) => item.id === dose.medicationId);
+      const time = new Intl.DateTimeFormat('en', { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(dose.scheduledFor));
+      return `${med?.name}, ${med?.dosage}, scheduled at ${time}`;
+    }).join('. ')}.`);
   };
 
   const handleSimulatePillCheck = () => {
@@ -130,37 +153,7 @@ function SanjeevaniApp(): React.JSX.Element {
 
   return (
     <div className={isElderMode ? 'elder-mode-root' : ''}>
-      {showSosAlert && (
-        <aside
-          role="alert"
-          style={{
-            background: '#b91c1c',
-            color: '#ffffff',
-            padding: '16px 24px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div>
-            <strong>🚨 EMERGENCY SAFETY ALERT:</strong> Potential emergency language detected. Call{' '}
-            <a href="tel:112" style={{ color: '#fef08a', textDecoration: 'underline', fontWeight: 800 }}>
-              112 (Emergency)
-            </a>{' '}
-            or visit the nearest hospital emergency room immediately.
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowSosAlert(false)}
-            style={{ background: '#ffffff', color: '#b91c1c', border: 'none', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Acknowledge
-          </button>
-        </aside>
-      )}
-
+      <a className="skip-link" href="#main">Skip to care content</a>
       <header className="site-header">
         <a className="brand" href="#main" aria-label="Sanjeevani Elder Care Home">
           <span className="brand-mark" aria-hidden="true">S</span>
@@ -192,33 +185,37 @@ function SanjeevaniApp(): React.JSX.Element {
           </button>
 
           <label htmlFor="role-select" className="role-badge">
-            <span>Role:</span>
+            <span>{isDemo ? 'Demo role:' : 'Role:'}</span>
             <select
               id="role-select"
               value={role}
+              disabled={!isDemo}
               onChange={(e) => setRole(e.target.value as MemberRole)}
               style={{ background: 'transparent', border: 'none', fontWeight: 700, color: '#1b5e52', cursor: 'pointer' }}
               aria-label="Select Care Role"
             >
-              <option value="elder">Elder (Dadaji)</option>
-              <option value="caretaker">Caretaker (Priya)</option>
-              <option value="family">Family (Rohan)</option>
+              <option value="elder">Elder</option>
+              <option value="caretaker">Caretaker</option>
+              <option value="family">Family</option>
             </select>
           </label>
 
+          <button type="button" className="sos-button" onClick={() => setShowSosAlert(true)}>SOS · Emergency help</button>
+
           <span className="status-pill" role="status">
-            Offline Demo
+            {isDemo ? 'Offline Demo' : isLiveConnected ? 'Firebase connected' : 'Sign-in required'}
           </span>
         </div>
       </header>
 
-      <main id="main" className="page-shell">
+      <main id="main" className="page-shell" tabIndex={-1}>
+        <AuthBanner />
         <nav className="nav-tabs" aria-label="Care Sections">
           <button
             type="button"
             className={`tab-button ${activeTab === 'assistant' ? 'active' : ''}`}
             onClick={() => setActiveTab('assistant')}
-            aria-selected={activeTab === 'assistant'}
+            aria-pressed={activeTab === 'assistant'}
           >
             🤖 Care Assistant & Triage
           </button>
@@ -226,7 +223,7 @@ function SanjeevaniApp(): React.JSX.Element {
             type="button"
             className={`tab-button ${activeTab === 'medications' ? 'active' : ''}`}
             onClick={() => setActiveTab('medications')}
-            aria-selected={activeTab === 'medications'}
+            aria-pressed={activeTab === 'medications'}
           >
             💊 Medication Schedule ({adherenceScore.taken}/{adherenceScore.total})
           </button>
@@ -234,7 +231,7 @@ function SanjeevaniApp(): React.JSX.Element {
             type="button"
             className={`tab-button ${activeTab === 'appointments' ? 'active' : ''}`}
             onClick={() => setActiveTab('appointments')}
-            aria-selected={activeTab === 'appointments'}
+            aria-pressed={activeTab === 'appointments'}
           >
             🗓️ Appointments ({appointments.length})
           </button>
@@ -242,7 +239,7 @@ function SanjeevaniApp(): React.JSX.Element {
             type="button"
             className={`tab-button ${activeTab === 'pill-check' ? 'active' : ''}`}
             onClick={() => setActiveTab('pill-check')}
-            aria-selected={activeTab === 'pill-check'}
+            aria-pressed={activeTab === 'pill-check'}
           >
             🔍 Label Verification
           </button>
@@ -349,12 +346,12 @@ function SanjeevaniApp(): React.JSX.Element {
                 >
                   🔊 Listen Aloud
                 </button>
-                {(role === 'elder' || role === 'caretaker') && (
+                {canManageMedication && (
                   <button
                     type="button"
                     className="send-button"
                     style={{ padding: '8px 16px', fontSize: '14px' }}
-                    onClick={() => setIsMedModalOpen(true)}
+                    onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}
                   >
                     + Add Medication
                   </button>
@@ -362,54 +359,7 @@ function SanjeevaniApp(): React.JSX.Element {
               </div>
             </div>
 
-            <div className="med-list">
-              {medications.map((item) => (
-                <div key={item.id} className="med-item">
-                  <div className="med-info">
-                    <h3>{item.name} — <span style={{ fontWeight: 400 }}>{item.dosage}</span></h3>
-                    <p>Scheduled at: <strong>{item.times.join(', ')}</strong> • {item.notes}</p>
-                  </div>
-                  <div className="med-actions">
-                    {item.status === 'taken' && (
-                      <span className="status-badge-taken">✓ Taken at {item.actionTime}</span>
-                    )}
-                    {item.status === 'skipped' && (
-                      <span className="status-badge-skipped">✕ Skipped at {item.actionTime}</span>
-                    )}
-                    {item.status === 'pending' && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-taken"
-                          onClick={() => logDose(item.id, 'taken')}
-                          aria-label={`Mark ${item.name} as taken`}
-                        >
-                          Mark Taken
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-skip"
-                          onClick={() => logDose(item.id, 'skipped')}
-                          aria-label={`Mark ${item.name} as skipped`}
-                        >
-                          Skip
-                        </button>
-                      </>
-                    )}
-                    {(role === 'elder' || role === 'caretaker') && (
-                      <button
-                        type="button"
-                        onClick={() => deleteMedication(item.id)}
-                        aria-label={`Delete ${item.name}`}
-                        style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', padding: '6px' }}
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <MedicationTimeline key={activeProfile.id} onEdit={(medication) => { setEditingMedication(medication); setIsMedModalOpen(true); }} />
           </section>
         )}
 
@@ -426,6 +376,7 @@ function SanjeevaniApp(): React.JSX.Element {
                 type="button"
                 className="send-button"
                 style={{ padding: '8px 16px', fontSize: '14px' }}
+                disabled={!canEdit}
                 onClick={() => setIsApptModalOpen(true)}
               >
                 + Schedule Appointment
@@ -433,24 +384,8 @@ function SanjeevaniApp(): React.JSX.Element {
             </div>
 
             <div>
-              {appointments.map((item) => (
-                <div key={item.id} className="appt-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h3>{item.doctorName} — <span style={{ color: '#1b5e52' }}>{item.specialty}</span></h3>
-                    <p><strong>Time:</strong> {item.dateTime.replace('T', ' ')}</p>
-                    <p><strong>Location:</strong> {item.location}</p>
-                    <p style={{ marginTop: '8px', color: '#385650' }}>{item.notes}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteAppointment(item.id)}
-                    aria-label={`Cancel appointment with ${item.doctorName}`}
-                    style={{ background: 'transparent', border: 'none', color: '#991b1b', cursor: 'pointer', padding: '6px' }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
+              {appointments.length === 0 && <p className="empty-state">No appointments yet. Schedule a visit to start preparing.</p>}
+              {appointments.map((item) => <AppointmentCard key={`${activeProfile.id}:${item.id}`} appointment={item} />)}
             </div>
           </section>
         )}
@@ -520,8 +455,9 @@ function SanjeevaniApp(): React.JSX.Element {
       </main>
 
       {/* Feature Modals Foundation */}
-      <MedicationModal isOpen={isMedModalOpen} onClose={() => setIsMedModalOpen(false)} />
-      <AppointmentModal isOpen={isApptModalOpen} onClose={() => setIsApptModalOpen(false)} />
+      {isMedModalOpen && <MedicationModal medication={editingMedication} onClose={() => setIsMedModalOpen(false)} />}
+      {isApptModalOpen && <AppointmentModal isOpen onClose={() => setIsApptModalOpen(false)} />}
+      {showSosAlert && <EmergencyDrawer onClose={() => setShowSosAlert(false)} />}
       <CareCircleModal isOpen={isCircleModalOpen} onClose={() => setIsCircleModalOpen(false)} />
     </div>
   );

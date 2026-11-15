@@ -1,196 +1,72 @@
 import React, { useState } from 'react';
+import type { Medication } from '@sanjeevani/shared/types/medication';
+import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
 import { Modal } from '../common/Modal.js';
 import { useCare } from '../../context/CareContext.js';
-import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
 
-export interface MedicationModalProps {
-  readonly isOpen: boolean;
+interface MedicationModalProps {
   readonly onClose: () => void;
+  readonly medication?: Medication;
 }
 
-/** Base foundation modal for adding a new medication schedule. */
-export function MedicationModal({ isOpen, onClose }: MedicationModalProps): React.JSX.Element {
-  const { addMedication } = useCare();
-  const [name, setName] = useState('');
-  const [dosage, setDosage] = useState('');
-  const [time, setTime] = useState('08:00');
-  const [frequencyType, setFrequencyType] = useState<'daily' | 'weekdays' | 'interval'>('daily');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+/** Shared create/edit form; callers mount a fresh instance for each editing session. */
+export function MedicationModal({ onClose, medication }: MedicationModalProps): React.JSX.Element {
+  const { addMedication, updateMedication, today } = useCare();
+  const [name, setName] = useState(medication?.name ?? '');
+  const [dosage, setDosage] = useState(medication?.dosage ?? '');
+  const [times, setTimes] = useState<string[]>([...(medication?.times ?? ['08:00'])]);
+  const [frequencyType, setFrequencyType] = useState<MedicationInput['frequency']['type']>(medication?.frequency.type ?? 'daily');
+  const [days, setDays] = useState<number[]>(medication?.frequency.type === 'weekdays' ? [...(medication.frequency.days ?? [1, 2, 3, 4, 5])] : [1, 2, 3, 4, 5]);
+  const [interval, setInterval] = useState(medication?.frequency.type === 'interval' ? medication.frequency.everyNDays : 2);
+  const [startDate, setStartDate] = useState(medication?.startDate ?? today);
+  const [endDate, setEndDate] = useState(medication?.endDate ?? '');
+  const [notes, setNotes] = useState(medication?.notes ?? '');
+  const [active, setActive] = useState(medication?.active ?? true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationError(null);
-
-    const inputData: MedicationInput = {
-      name: name.trim(),
-      dosage: dosage.trim(),
-      times: [time],
-      frequency: frequencyType === 'daily'
-        ? { type: 'daily' }
-        : frequencyType === 'weekdays'
-          ? { type: 'weekdays', days: [1, 2, 3, 4, 5] }
-          : { type: 'interval', everyNDays: 2 },
-      startDate,
-      endDate: null,
-      notes: notes.trim(),
-      active: true,
-    };
-
-    const parsed = medicationInputSchema.safeParse(inputData);
-    if (!parsed.success) {
-      setValidationError(parsed.error.issues[0]?.message ?? 'Please check medication details.');
-      return;
-    }
-
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    const parsed = medicationInputSchema.safeParse({ name, dosage, times: [...new Set(times)].sort(),
+      frequency: frequencyType === 'daily' ? { type: 'daily' } : frequencyType === 'weekdays' ? { type: 'weekdays', days } : { type: 'interval', everyNDays: interval },
+      startDate, endDate: endDate || null, notes, active });
+    if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? 'Check your schedule.'); return; }
+    if (endDate && endDate < startDate) { setError('End date must be on or after the start date.'); return; }
+    setBusy(true);
     try {
-      setIsSubmitting(true);
-      await addMedication(parsed.data);
-      setName('');
-      setDosage('');
-      setNotes('');
+      if (medication) await updateMedication(medication.id, parsed.data);
+      else await addMedication(parsed.data);
       onClose();
-    } catch (err) {
-      setValidationError(err instanceof Error ? err.message : 'Failed to save medication.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not save medication. Please retry.'); }
+    finally { setBusy(false); }
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Medication Schedule">
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {validationError && (
-          <div
-            style={{
-              padding: '12px',
-              borderRadius: '10px',
-              backgroundColor: '#fee2e2',
-              color: '#991b1b',
-              fontSize: '14px',
-              fontWeight: 600,
-            }}
-            role="alert"
-          >
-            {validationError}
-          </div>
-        )}
-
-        <div>
-          <label htmlFor="med-name" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-            Medication Name *
-          </label>
-          <input
-            id="med-name"
-            type="text"
-            className="chat-input"
-            style={{ width: '100%' }}
-            placeholder="e.g. Amlodipine, Metformin, Telmisartan"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <label htmlFor="med-dosage" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-              Dosage *
-            </label>
-            <input
-              id="med-dosage"
-              type="text"
-              className="chat-input"
-              style={{ width: '100%' }}
-              placeholder="e.g. 5 mg, 500 mg tablet"
-              value={dosage}
-              onChange={(e) => setDosage(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="med-time" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-              Schedule Time (24h) *
-            </label>
-            <input
-              id="med-time"
-              type="time"
-              className="chat-input"
-              style={{ width: '100%' }}
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <label htmlFor="med-freq" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-              Frequency
-            </label>
-            <select
-              id="med-freq"
-              className="chat-input"
-              style={{ width: '100%', cursor: 'pointer' }}
-              value={frequencyType}
-              onChange={(e) => setFrequencyType(e.target.value as 'daily' | 'weekdays' | 'interval')}
-            >
-              <option value="daily">Every Day</option>
-              <option value="weekdays">Weekdays Only (Mon-Fri)</option>
-              <option value="interval">Alternate Days (Every 2 days)</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="med-start" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-              Start Date
-            </label>
-            <input
-              id="med-start"
-              type="date"
-              className="chat-input"
-              style={{ width: '100%' }}
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="med-notes" style={{ display: 'block', fontWeight: 650, color: '#16463e', marginBottom: '6px' }}>
-            Care Instructions / Notes
-          </label>
-          <textarea
-            id="med-notes"
-            className="chat-input"
-            style={{ width: '100%', minHeight: '70px', resize: 'vertical' }}
-            placeholder="e.g. Take immediately after breakfast with a full glass of warm water."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-          <button
-            type="button"
-            className="btn-skip"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="send-button"
-            disabled={isSubmitting || !name.trim() || !dosage.trim()}
-          >
-            {isSubmitting ? 'Saving...' : 'Save Medication'}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
+  return <Modal isOpen onClose={onClose} title={medication ? 'Edit Medication Schedule' : 'Add Medication Schedule'} dismissible={!busy}>
+    <form className="care-form" onSubmit={submit} aria-busy={busy}>
+      {error && <p className="error-message" role="alert">{error}</p>}
+      <label htmlFor="med-name">Medication name<input id="med-name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label htmlFor="med-dosage">Prescribed dosage<input id="med-dosage" required maxLength={80} value={dosage} onChange={(e) => setDosage(e.target.value)} /></label>
+      <fieldset><legend>Daily dose times (profile timezone)</legend>
+        {times.map((time, index) => <div className="form-row" key={index}>
+          <label htmlFor={`med-time-${index}`}>Time {index + 1}<input id={`med-time-${index}`} type="time" required value={time} onChange={(e) => setTimes(times.map((value, i) => i === index ? e.target.value : value))} /></label>
+          <button className="btn-skip" type="button" disabled={times.length === 1} aria-label={`Remove time ${index + 1}`} onClick={() => setTimes(times.filter((_, i) => i !== index))}>Remove</button>
+        </div>)}
+        <button className="chip" type="button" disabled={times.length >= 12} onClick={() => setTimes([...times, '20:00'])}>+ Add dose time</button>
+      </fieldset>
+      <label htmlFor="med-freq">Frequency<select id="med-freq" value={frequencyType} onChange={(e) => setFrequencyType(e.target.value as MedicationInput['frequency']['type'])}>
+        <option value="daily">Every day</option><option value="weekdays">Selected weekdays</option><option value="interval">Every N days</option>
+      </select></label>
+      {frequencyType === 'weekdays' && <fieldset><legend>Days of the week</legend><div className="weekday-options">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) =>
+        <label key={day}><input type="checkbox" checked={days.includes(index)} onChange={(e) => setDays(e.target.checked ? [...days, index] : days.filter((value) => value !== index))} />{day}</label>)}</div></fieldset>}
+      {frequencyType === 'interval' && <label htmlFor="med-interval">Days between doses<input id="med-interval" type="number" min={1} max={365} required value={interval} onChange={(e) => setInterval(Number(e.target.value))} /></label>}
+      <div className="form-grid">
+        <label htmlFor="med-start">Start date<input id="med-start" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label>
+        <label htmlFor="med-end">End date (optional)<input id="med-end" type="date" min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+      </div>
+      <label htmlFor="med-notes">Care instructions<textarea id="med-notes" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+      <label className="check-label"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />Schedule is active</label>
+      <div className="action-row"><button className="btn-skip" type="button" disabled={busy} onClick={onClose}>Cancel</button><button className="send-button" disabled={busy}>{busy ? 'Saving…' : 'Save Medication'}</button></div>
+    </form>
+  </Modal>;
 }
