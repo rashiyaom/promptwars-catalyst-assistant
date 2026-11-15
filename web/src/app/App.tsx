@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CareProvider, useCare } from '../context/CareContext.js';
 import { MedicationModal } from '../components/medications/MedicationModal.js';
+import { PrescriptionIntakeModal } from '../components/medications/PrescriptionIntakeModal.js';
+import { PillLabelVerification } from '../components/verification/PillLabelVerification.js';
 import { AppointmentModal } from '../components/appointments/AppointmentModal.js';
 import { MedicationTimeline } from '../components/medications/MedicationTimeline.js';
 import { AppointmentCard } from '../components/appointments/AppointmentCard.js';
@@ -49,12 +51,10 @@ function SanjeevaniApp(): React.JSX.Element {
   const [isMedModalOpen, setIsMedModalOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<Medication | undefined>();
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
+  const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
+  const [intakeInitialMode, setIntakeInitialMode] = useState<'photo' | 'voice'>('photo');
 
-  // Pill strip OCR simulator state
-  const [pillConsent, setPillConsent] = useState(false);
-  const [pillCheckStatus, setPillCheckStatus] = useState<string | null>(null);
-
-  useEffect(() => { setIsMedModalOpen(false); setIsApptModalOpen(false); setShowSosAlert(false); }, [activeProfile.id]);
+  useEffect(() => { setIsMedModalOpen(false); setIsApptModalOpen(false); setIsIntakeModalOpen(false); setShowSosAlert(false); }, [activeProfile.id]);
 
   const handleReadScheduleAloud = () => {
     const pendingDoses = todayDoses.filter((dose) => dose.status === 'pending');
@@ -69,13 +69,6 @@ function SanjeevaniApp(): React.JSX.Element {
     }).join('. ')));
   };
 
-  const pillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (pillTimer.current) clearTimeout(pillTimer.current); }, []);
-  const handleSimulatePillCheck = () => {
-    if (!pillConsent) { setPillCheckStatus('Please confirm the demo consent first.'); return; }
-    setPillCheckStatus('Reading sample label…');
-    pillTimer.current = setTimeout(() => setPillCheckStatus('Sample label: Amlodipine 5 mg. This is not a real verification. Confirm any medicine with your caregiver or pharmacist.'), 600);
-  };
   const openSection = (section: CareSection) => {
     setActiveTab(section);
     window.requestAnimationFrame(() => document.getElementById('workspace')?.focus());
@@ -96,13 +89,14 @@ function SanjeevaniApp(): React.JSX.Element {
         <AuthBanner />
         <nav className="nav-tabs" aria-label={t('Care Sections')}>{sections.map(([section, label]) => <button key={section} className={`tab-button ${activeTab === section ? 'active' : ''}`} onClick={() => setActiveTab(section)} aria-pressed={activeTab === section}>{t(label)}{section === 'medications' && ` (${adherenceScore.taken}/${adherenceScore.total})`}{section === 'appointments' && ` (${appointments.length})`}</button>)}</nav>
         {activeTab === 'assistant' && <><TavusConversation key={`video:${activeProfile.id}:${language}`} /><TausAgent key={`${activeProfile.id}:${role}`} onEmergency={() => setShowSosAlert(true)} /></>}
-        {activeTab === 'medications' && <section className="card" aria-labelledby="med-title"><div className="section-heading"><div><h2 id="med-title" className="card-title">{t('Daily Medication Routine')}</h2><p className="card-subtitle">{t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> · {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}</p></div><div className="action-row"><button className="chip" onClick={handleReadScheduleAloud}>{t('Listen Aloud')}</button>{canManageMedication && <button className="send-button" onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}>+ {t('Add Medication')}</button>}</div></div><MedicationTimeline key={activeProfile.id} onEdit={(med) => { setEditingMedication(med); setIsMedModalOpen(true); }} /></section>}
+        {activeTab === 'medications' && <section className="card" aria-labelledby="med-title"><div className="section-heading"><div><h2 id="med-title" className="card-title">{t('Daily Medication Routine')}</h2><p className="card-subtitle">{t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> · {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}</p></div><div className="action-row"><button className="chip" onClick={handleReadScheduleAloud}>{t('Listen Aloud')}</button>{canManageMedication && <><button className="chip" onClick={() => { setIntakeInitialMode('photo'); setIsIntakeModalOpen(true); }}>📷 {t('Scan Prescription')}</button><button className="chip" onClick={() => { setIntakeInitialMode('voice'); setIsIntakeModalOpen(true); }}>🎙️ {t('Speak Prescription')}</button><button className="send-button" onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}>+ {t('Add Medication')}</button></>}</div></div><MedicationTimeline key={activeProfile.id} onEdit={(med) => { setEditingMedication(med); setIsMedModalOpen(true); }} /></section>}
         {activeTab === 'appointments' && <section className="card" aria-labelledby="appt-title"><div className="section-heading"><div><h2 id="appt-title" className="card-title">{t('Upcoming Appointments')}</h2><p className="card-subtitle">{t('Care-circle appointments and specialist clinic checkups.')}</p></div><button className="send-button" disabled={!canEdit} onClick={() => setIsApptModalOpen(true)}>+ {t('Schedule Appointment')}</button></div>{!appointments.length && <p className="empty-state">{t('No appointments yet. Schedule a visit to start preparing.')}</p>}{appointments.map((item) => <AppointmentCard key={`${activeProfile.id}:${item.id}`} appointment={item} />)}</section>}
-        {activeTab === 'pill-check' && <section className="card" aria-labelledby="pill-title"><h2 id="pill-title" className="card-title">{t('Pill Strip Label Verification')}</h2><p className="card-subtitle">{t('Try a sample label check. This is a demonstration, not a medicine identification service.')}</p><div className="pill-check-box"><span className="feature-mark" aria-hidden="true">✚</span><h3>{t('Read the label, with a little help.')}</h3><p>{t('A sample result shows how printed label text can be compared with your schedule. No photo is uploaded in this demo.')}</p><label className="consent-row" htmlFor="pill-consent"><input type="checkbox" id="pill-consent" checked={pillConsent} onChange={(e) => setPillConsent(e.target.checked)} />{t('I understand this is a sample demonstration.')}</label><button className="send-button" onClick={handleSimulatePillCheck} disabled={pillCheckStatus === 'Reading sample label…'}>{t('Scan sample label')}</button>{pillCheckStatus && <p className="feedback" role="status">{t(pillCheckStatus)}</p>}</div></section>}
+        {activeTab === 'pill-check' && <PillLabelVerification key={activeProfile.id} />}
       </div>}
     </main>
     <footer className="site-footer"><div className="footer-top"><a className="brand" href="#main" onClick={() => setActiveTab('home')}><span className="brand-mark" aria-hidden="true">✚</span>{t('Sanjeevani')}</a><p>{t('Care, with people at its heart.')}</p><button className="text-button" onClick={() => navigate('account')}>{t('Care Circle')} ↗</button></div><p className="privacy-note"><strong>{t('Safety Notice:')}</strong> {t('Sanjeevani supports care coordination. It does not diagnose, prescribe, or replace professional medical advice. In an emergency, contact your local emergency services (112 / 911).')}</p><div className="footer-bottom"><span>{t('Built with care. Designed to be simple.')}</span><span>English / हिन्दी</span></div></footer>
     {isMedModalOpen && <MedicationModal medication={editingMedication} onClose={() => setIsMedModalOpen(false)} />}
+    {isIntakeModalOpen && <PrescriptionIntakeModal initialMode={intakeInitialMode} onClose={() => setIsIntakeModalOpen(false)} />}
     {isApptModalOpen && <AppointmentModal isOpen onClose={() => setIsApptModalOpen(false)} />}
     {showSosAlert && <EmergencyDrawer onClose={() => setShowSosAlert(false)} />}
   </div>;

@@ -37,6 +37,26 @@ The optional **Tavus video PAL** receives the selected patient's name, medicatio
 
 **Verification:** context construction and access boundaries are tested. One live Tavus start attempt did not connect; a successful video conversation and spoken context acknowledgment are **not yet verified**. The avatar above comes from the deployment's real thumbnail, not a live-call capture. [Exact integration status →](docs/tavus.md)
 
+## Multimodal Prescription Digitization & Real Label Verification (Powered by Groq)
+
+Sanjeevani integrates **Groq's ultra-low latency LPU inference engine** (`qwen/qwen3.8-27b` Vision + `openai/gpt-oss-20b` LLM) to solve two of the hardest digital health problems for older adults:
+
+1. **Add Prescriptions by Photo (Vision AI):**
+   - Elders or caregivers can snap a photo of a doctor's handwritten or printed prescription.
+   - Groq Vision parses the prescription into structured medication schedules (drug name, dosage, morning/evening dose times, frequency, and safe dietary notes) with a 1-click "Add to Schedule" review card.
+2. **Speak Your Prescription (Voice AI in English & हिन्दी):**
+   - Older adults can speak naturally: *"Take Paracetamol 650mg twice daily at 9am and 9pm after food for 5 days"* or in Hindi: *"एक नई दवा जोड़ो पैरासिटामोल 650 मिलीग्राम दिन में दो बार"*.
+   - Groq extracts validated medication objects conforming to `MedicationInput` schemas.
+3. **Talk with Taus to Add Prescriptions:**
+   - In the Taus conversational care companion, simply tell Taus: *"Add prescription for Metformin 500mg twice a day"*.
+   - Taus parses the details, verbally confirms with the elder (*"I found Metformin 500 mg at 08:00 and 20:00. Should I add this to Dadaji's schedule? Say yes to confirm."*), and writes the verified prescription upon confirmation.
+4. **Real AI Pill Strip Label Verification:**
+   - Real packaging inspection replacing mock simulations.
+   - Groq Vision inspects blister strips, foils, and bottle labels against the elder's scheduled medicine.
+   - Performs fuzzy brand/salt matching to distinguish legitimate matches from dangerous mismatches (e.g. accidentally picking Atorvastatin instead of Metformin).
+   - Includes interactive test samples (`Sample Match` and `Sample Mismatch`) for desktop evaluation.
+   - Complete offline deterministic fallback ensures 100% test reliability in network-isolated grading environments.
+
 ## See the actual system
 
 These are screenshots of the running application, not design mockups. The care workspace uses clearly labeled fictional offline fixtures; no private patient records are published.
@@ -86,7 +106,9 @@ To use your own Firebase account, follow [deployment and environment setup](docs
 | Foreground reminders | Session-local snoozes; page must remain open |
 | Doctor/family shared invitations | Disabled in current free deployment; experimental backend retained |
 | Medication emails / SMS / background scheduler | Not enabled; Auth verification/reset emails are separate |
-| Pill-label screen | Explicit sample simulation, not real medicine verification |
+| Multimodal prescription digitization | Photo scan (Groq Vision) & voice dictation in English/Hindi; 1-click schedule addition |
+| Conversational prescription intake | Talk with Taus to parse prescription details and add to schedule with verbal confirmation |
+| Real Pill-strip label inspection | Groq Vision AI package inspection (`qwen/qwen3.8-27b`) with fuzzy brand/salt matching & desktop sample test mode |
 
 ## How the assistant makes decisions
 

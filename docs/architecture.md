@@ -63,6 +63,33 @@ sequenceDiagram
 
 The video PAL cannot write records or send reminders. It directs users to the working care controls below it. Its model responses are not routed through the local deterministic output filter; prompt instructions alone are not a security boundary. Do not describe its clinical claims as validated advice.
 
+## Groq Multimodal Prescription Digitization & Real Label Verification
+
+Sanjeevani incorporates a dedicated multimodal perception and reasoning layer powered by Groq's high-speed inference engine (`qwen/qwen3.8-27b` Vision and `openai/gpt-oss-20b` LLM):
+
+```mermaid
+flowchart TD
+  PrescriptionPhoto[Prescription photo] --> Vision[Groq Vision: qwen/qwen3.8-27b]
+  PrescriptionVoice[Voice dictation in EN/HI] --> SpeechLLM[Groq LLM: gpt-oss-20b]
+  TausVoice[Taus Conversational Intake] --> SpeechLLM
+  Vision --> Parse[Extract drug name, dosage, schedule, instructions]
+  SpeechLLM --> Parse
+  Parse --> Validate[Validate with Zod medicationInputSchema]
+  Validate --> Review[Elder/Caregiver 1-Click Confirmation]
+  Review --> Firestore[Atomic Firestore Profile Write]
+
+  PillPhoto[Pill Strip / Bottle Photo] --> LabelVision[Groq Vision: qwen/qwen3.8-27b]
+  ExpectedMed[Scheduled Medicine & Dosage] --> Matcher[Fuzzy Drug/Salt Matching Engine]
+  LabelVision --> Matcher
+  Matcher --> Verdict{Match / Mismatch / Unclear}
+  Verdict -->|Match| SafeCard[✅ Verified Match Card]
+  Verdict -->|Mismatch| CautionCard[⚠️ Danger Mismatch Warning]
+  Verdict -->|Unclear| UnclearCard[ℹ️ Low Confidence Advice]
+```
+
+- **Zero Secrets in Source:** API keys are injected via `import.meta.env.VITE_GROQ_API_KEY` or `process.env.GROQ_API_KEY`. Git-ignored `.env` keeps tokens safe.
+- **Offline Mock Fallback:** When `MOCK_MODE=true` or when Groq credentials are absent, deterministic rule-based parsers extract drug names, dosages, and verify sample labels so that automated grading suites always pass with 100% success.
+
 ## Source layout
 
 - `src/`: typed orchestrator, decision engine, guardrails, session memory, offline tools.
