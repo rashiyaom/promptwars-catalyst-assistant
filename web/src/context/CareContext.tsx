@@ -7,7 +7,7 @@ import type { CareMember, CareProfile, MemberRole } from '@sanjeevani/shared/typ
 import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
 import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
 import { getFirebaseClients } from '../lib/firebase.js';
-import { subscribeToAuth } from '../features/auth/authService.js';
+import { signOutMember, subscribeToAuth } from '../features/auth/authService.js';
 import * as medService from '../features/medications/medicationService.js';
 import * as apptService from '../features/appointments/appointmentService.js';
 import * as profService from '../features/profiles/profileService.js';
@@ -35,7 +35,10 @@ export interface CareContextValue extends ProfileData {
   readonly todayDoses: readonly DoseLog[];
   readonly canManageMedication: boolean;
   readonly canEdit: boolean;
+  readonly currentMember: CareMember | null;
   readonly adherenceScore: { readonly taken: number; readonly total: number; readonly percentage: number };
+  signInAsMember: (member: CareMember) => void;
+  signOutCurrentMember: () => Promise<void>;
   setRole: (role: MemberRole) => void;
   toggleElderMode: () => void;
   speakText: (text: string) => void;
@@ -78,6 +81,7 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
   const isDemo = getFirebaseClients() === null;
   const isLiveConnected = !isDemo && Boolean(user?.emailVerified && !user.isAnonymous);
   const [data, setData] = useState<ProfileData>(() => isDemo ? demoData() : EMPTY_DATA);
+  const [currentMember, setCurrentMember] = useState<CareMember | null>(() => isDemo ? INITIAL_MEMBERS[0] : null);
   const [profiles, setProfiles] = useState<CareProfile[]>(() => isDemo ? [DEFAULT_PROFILE] : []);
   const [isElderMode, setIsElderMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,8 +209,21 @@ function CareSession({ children, user }: { readonly children: React.ReactNode; r
     window.speechSynthesis.speak(utterance);
   };
 
-  return <CareContext.Provider value={{ ...data, user, isDemo, isLiveConnected, isElderMode, loading, dataError, profiles, today, todayDoses, canEdit, canManageMedication,
+  const signInAsMember = (member: CareMember) => {
+    setCurrentMember(member);
+    setData((previous) => ({ ...previous, role: member.role }));
+  };
+
+  const signOutCurrentMember = async () => {
+    if (!isDemo && user) {
+      await signOutMember();
+    }
+    setCurrentMember(null);
+  };
+
+  return <CareContext.Provider value={{ ...data, user, isDemo, isLiveConnected, isElderMode, loading, dataError, profiles, today, todayDoses, canEdit, canManageMedication, currentMember,
     adherenceScore: { taken, total: todayDoses.length, percentage: todayDoses.length ? Math.round(taken / todayDoses.length * 100) : 0 },
+    signInAsMember, signOutCurrentMember,
     setRole: (next) => { if (isDemo) setData((previous) => ({ ...previous, role: next })); },
     toggleElderMode: () => setIsElderMode((previous) => !previous), speakText,
     addMedication, updateMedication, deleteMedication, logDose, addAppointment, deleteAppointment,

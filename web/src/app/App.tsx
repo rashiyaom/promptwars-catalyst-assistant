@@ -7,6 +7,7 @@ import { CareCircleModal } from '../components/careCircle/CareCircleModal.js';
 import { MedicationTimeline } from '../components/medications/MedicationTimeline.js';
 import { AppointmentCard } from '../components/appointments/AppointmentCard.js';
 import { AuthBanner } from '../components/auth/AuthBanner.js';
+import { AuthModal } from '../components/auth/AuthModal.js';
 import { EmergencyDrawer } from '../components/emergency/EmergencyDrawer.js';
 import type { Medication } from '@sanjeevani/shared/types/medication';
 import type { MemberRole } from '@sanjeevani/shared/types/profile';
@@ -38,6 +39,7 @@ function SanjeevaniApp(): React.JSX.Element {
     isLiveConnected,
     canManageMedication,
     canEdit,
+    currentMember,
   } = useCare();
 
   const [chatSessionId] = useState(() => crypto.randomUUID());
@@ -47,6 +49,7 @@ function SanjeevaniApp(): React.JSX.Element {
   const [showSosAlert, setShowSosAlert] = useState(false);
 
   // Modals state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMedModalOpen, setIsMedModalOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<Medication | undefined>();
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
@@ -173,6 +176,16 @@ function SanjeevaniApp(): React.JSX.Element {
             aria-pressed={isElderMode}
           >
             {isElderMode ? '👓 Elder Mode: ON' : '👓 Large Text'}
+          </button>
+
+          <button
+            type="button"
+            className="chip"
+            style={{ fontWeight: 650, background: '#eaf5f1' }}
+            onClick={() => setIsAuthModalOpen(true)}
+            aria-label="Account sign-in or switch member"
+          >
+            👤 {currentMember ? currentMember.displayName.split(' ')[0] : 'Sign In'}
           </button>
 
           <button
@@ -455,6 +468,7 @@ function SanjeevaniApp(): React.JSX.Element {
       </main>
 
       {/* Feature Modals Foundation */}
+      {isAuthModalOpen && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />}
       {isMedModalOpen && <MedicationModal medication={editingMedication} onClose={() => setIsMedModalOpen(false)} />}
       {isApptModalOpen && <AppointmentModal isOpen onClose={() => setIsApptModalOpen(false)} />}
       {showSosAlert && <EmergencyDrawer onClose={() => setShowSosAlert(false)} />}
