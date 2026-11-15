@@ -24,11 +24,29 @@ out/
 .coverage.*
 htmlcov/
 *.cover
+*.tsbuildinfo
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+.runtimeconfig.json
+functions/lib/
+functions/node_modules/
+functions/.secret.local
+
+# Uploaded care photos are runtime-only and must not enter source control.
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
 
 # Environment variables & secrets (CRITICAL: Do not commit secrets)
 .env
 .env.*
 !.env.example
+!**/.env.example
+!.env.emulator.example
 
 # IDE & OS files
 .DS_Store

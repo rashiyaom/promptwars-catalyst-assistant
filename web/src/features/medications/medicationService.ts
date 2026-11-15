@@ -1,0 +1,80 @@
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
+} from 'firebase/firestore';
+import type { DoseLog } from '@sanjeevani/shared/types/doseLog';
+import type { Medication } from '@sanjeevani/shared/types/medication';
+import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
+import { getFirebaseClients } from '../../lib/firebase.js';
+
+/** Read a member's medication schedules from their care profile. */
+export async function listMedications(profileId: string): Promise<Medication[]> {
+  const clients = getFirebaseClients();
+  if (!clients) return [];
+  const reference = collection(clients.db, 'profiles', profileId, 'medications');
+  const result = await getDocs(query(reference, orderBy('name')));
+  return result.docs.map((item) => ({ id: item.id, ...item.data() }) as Medication);
+}
+
+/** Add a schedule entered by a profile member with medication edit permission. */
+export async function addMedication(
+  profileId: string,
+  input: MedicationInput,
+): Promise<string> {
+  const clients = getFirebaseClients();
+  if (!clients) throw new Error('Medication storage is unavailable in offline demo mode.');
+  const parsed = medicationInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Check the medication name, dose, schedule, and dates.');
+  const reference = collection(clients.db, 'profiles', profileId, 'medications');
+  const memberId = clients.auth.currentUser?.uid;
+  if (!memberId) throw new Error('Sign in to add a medication schedule.');
+  const result = await addDoc(reference, {
+    ...parsed.data,
+    updatedBy: memberId,
+    updatedAt: Timestamp.now(),
+  });
+  return result.id;
+}
+
+/** Read dose history ordered by its scheduled time. */
+export async function listDoseLogs(profileId: string): Promise<DoseLog[]> {
+  const clients = getFirebaseClients();
+  if (!clients) return [];
+  const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
+  const result = await getDocs(query(reference, orderBy('scheduledFor', 'desc')));
+  return result.docs.map((item) => {
+    const data = item.data();
+    return {
+      id: item.id,
+      medicationId: String(data.medicationId ?? ''),
+      scheduledFor: data.scheduledFor instanceof Timestamp ? data.scheduledFor.toDate().toISOString() : '',
+      status: data.status as DoseLog['status'],
+      loggedBy: typeof data.loggedBy === 'string' ? data.loggedBy : null,
+      loggedAt: data.loggedAt instanceof Timestamp ? data.loggedAt.toDate().toISOString() : null,
+      reminderSentAt: data.reminderSentAt instanceof Timestamp ? data.reminderSentAt.toDate().toISOString() : null,
+      missedAlertSentAt: data.missedAlertSentAt instanceof Timestamp ? data.missedAlertSentAt.toDate().toISOString() : null,
+    };
+  });
+}
+
+/** Mark a scheduled dose as taken or skipped by the current signed-in member. */
+export async function logDose(
+  profileId: string,
+  doseLogId: string,
+  status: 'taken' | 'skipped',
+): Promise<void> {
+  const clients = getFirebaseClients();
+  const memberId = clients?.auth.currentUser?.uid;
+  if (!clients || !memberId) throw new Error('Sign in to record a dose.');
+  const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
+  await updateDoc(
+    doc(reference, doseLogId),
+    { status, loggedBy: memberId, loggedAt: Timestamp.now() },
+  );
+}
