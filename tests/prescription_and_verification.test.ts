@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parsePrescriptionFromText, extractMedicationFallback } from '../web/src/features/prescription/prescriptionService.js';
-import { checkPillStripLabel, isDrugNameMatch } from '../web/src/features/verification/pillStripService.js';
+import {
+  parsePrescriptionFromText,
+  extractMedicationFallback,
+} from '../web/src/features/prescription/prescriptionService.js';
+import {
+  checkPillStripLabel,
+  isDrugNameMatch,
+} from '../web/src/features/verification/pillStripService.js';
 import { medicationInputSchema } from '../shared/schemas/medication.js';
 
 describe('Prescription Parsing from Speech and Text (Groq / Offline Fallback)', () => {
@@ -34,7 +40,9 @@ describe('Prescription Parsing from Speech and Text (Groq / Offline Fallback)', 
   });
 
   it('handles arbitrary doctor prescriptions with heuristic fallback', () => {
-    const parsed = extractMedicationFallback('Levothyroxine 50 mcg once a day in the morning before breakfast');
+    const parsed = extractMedicationFallback(
+      'Levothyroxine 50 mcg once a day in the morning before breakfast',
+    );
     expect(parsed.length).toBe(1);
     expect(parsed[0].name).toBe('Levothyroxine');
     expect(parsed[0].dosage).toBe('50 mcg');
@@ -90,8 +98,8 @@ describe('Real Pill Strip Label Verification', () => {
   });
 
   it('requires non-empty expected medication name', async () => {
-    await expect(
-      checkPillStripLabel('data:image/jpeg;base64,dummy', '   ', true),
-    ).rejects.toThrow(/Select or enter the expected medication/);
+    await expect(checkPillStripLabel('data:image/jpeg;base64,dummy', '   ', true)).rejects.toThrow(
+      /Select or enter the expected medication/,
+    );
   });
 });

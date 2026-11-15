@@ -16,10 +16,7 @@ describe('Geriatric Polypharmacy & Drug-Drug Interaction Safety Engine', () => {
   });
 
   it('flags critical Aspirin + NSAID interaction', () => {
-    const regimen = [
-      { name: 'Ecosprin 75mg' },
-      { name: 'Combiflam (Ibuprofen + Paracetamol)' },
-    ];
+    const regimen = [{ name: 'Ecosprin 75mg' }, { name: 'Combiflam (Ibuprofen + Paracetamol)' }];
     const report = checkDrugInteractions(regimen);
     expect(report.hasInteractions).toBe(true);
     expect(report.hasCritical).toBe(true);
@@ -30,10 +27,7 @@ describe('Geriatric Polypharmacy & Drug-Drug Interaction Safety Engine', () => {
   });
 
   it('flags critical Warfarin + Aspirin interaction', () => {
-    const regimen = [
-      { name: 'Warfarin 2mg' },
-      { name: 'Aspirin 81mg' },
-    ];
+    const regimen = [{ name: 'Warfarin 2mg' }, { name: 'Aspirin 81mg' }];
     const report = checkDrugInteractions(regimen);
     expect(report.hasInteractions).toBe(true);
     expect(report.hasCritical).toBe(true);
@@ -43,10 +37,7 @@ describe('Geriatric Polypharmacy & Drug-Drug Interaction Safety Engine', () => {
   });
 
   it('flags moderate Amlodipine + Simvastatin interaction', () => {
-    const regimen = [
-      { name: 'Amlodipine 5mg' },
-      { name: 'Simvastatin 40mg' },
-    ];
+    const regimen = [{ name: 'Amlodipine 5mg' }, { name: 'Simvastatin 40mg' }];
     const report = checkDrugInteractions(regimen);
     expect(report.hasInteractions).toBe(true);
     expect(report.hasCritical).toBe(false);
@@ -56,10 +47,7 @@ describe('Geriatric Polypharmacy & Drug-Drug Interaction Safety Engine', () => {
   });
 
   it('flags caution Metformin + Furosemide interaction', () => {
-    const regimen = [
-      { name: 'Glycomet 500' },
-      { name: 'Lasix 40mg' },
-    ];
+    const regimen = [{ name: 'Glycomet 500' }, { name: 'Lasix 40mg' }];
     const report = checkDrugInteractions(regimen);
     expect(report.hasInteractions).toBe(true);
     expect(report.hasCritical).toBe(false);
@@ -69,10 +57,7 @@ describe('Geriatric Polypharmacy & Drug-Drug Interaction Safety Engine', () => {
   });
 
   it('detects duplicate Paracetamol therapy across brand names', () => {
-    const regimen = [
-      { name: 'Dolo 650' },
-      { name: 'Crocin Advance 500mg' },
-    ];
+    const regimen = [{ name: 'Dolo 650' }, { name: 'Crocin Advance 500mg' }];
     const report = checkDrugInteractions(regimen);
     expect(report.hasInteractions).toBe(true);
     expect(report.hasCritical).toBe(true);

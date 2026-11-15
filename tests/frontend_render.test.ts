@@ -24,7 +24,14 @@ function renderInDemo(child: React.ReactNode): string {
 
 describe('Offline frontend rendering', () => {
   it('keeps demo sign-in explicit and hides contact editors from the elder', () => {
-    const html = renderInDemo(React.createElement(React.Fragment, null, React.createElement(AuthPage), React.createElement(ReminderSettings)));
+    const html = renderInDemo(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(AuthPage),
+        React.createElement(ReminderSettings),
+      ),
+    );
     expect(html).toContain('Explore offline demo');
     expect(html).toContain('doctor');
     expect(html).toContain('Automatic email delivery and background reminders are unavailable');
@@ -33,7 +40,14 @@ describe('Offline frontend rendering', () => {
     expect(html).not.toContain('type="tel"');
   });
   it('renders the Hindi Taus controls, context boundary and local-demo disclosure', () => {
-    const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initialLanguage: 'hi', children: React.createElement(CareProvider, { children: React.createElement(TausAgent, { onEmergency: () => undefined }) }) }));
+    const html = renderToStaticMarkup(
+      React.createElement(LanguageProvider, {
+        initialLanguage: 'hi',
+        children: React.createElement(CareProvider, {
+          children: React.createElement(TausAgent, { onEmergency: () => undefined }),
+        }),
+      }),
+    );
     expect(html).toContain('नमस्ते, मैं ताऊस हूँ।');
     expect(html).toContain('बोलकर बात शुरू करें');
     expect(html).toContain('ताऊस आपका निजी ईमेल इनबॉक्स नहीं पढ़ सकता।');
@@ -52,23 +66,48 @@ describe('Offline frontend rendering', () => {
   });
   it('renders two independent Metformin doses and all four timeline groups', () => {
     const html = renderInDemo(React.createElement(MedicationTimeline, { onEdit: () => undefined }));
-    expect((html.match(/aria-label="Mark Metformin at/g) ?? [])).toHaveLength(2);
-    for (const period of ['Morning', 'Afternoon', 'Evening', 'Night']) expect(html).toContain(`aria-label="${period} doses"`);
+    expect(html.match(/aria-label="Mark Metformin at/g) ?? []).toHaveLength(2);
+    for (const period of ['Morning', 'Afternoon', 'Evening', 'Night'])
+      expect(html).toContain(`aria-label="${period} doses"`);
     expect(html).toContain('Sample history');
     expect(html).toContain('All medication schedules');
   });
   it('prefills all schedule fields when editing without dropping additional times or custom frequency', () => {
-    const html = renderInDemo(React.createElement(MedicationModal, { onClose: () => undefined, medication: {
-      id: 'edit-med', name: 'Existing medicine', dosage: 'Existing dose', times: ['08:00', '14:00', '21:00'],
-      frequency: { type: 'interval', everyNDays: 5 }, startDate: '2026-11-01', endDate: '2026-12-31', notes: 'Existing notes', active: false,
-    } }));
+    const html = renderInDemo(
+      React.createElement(MedicationModal, {
+        onClose: () => undefined,
+        medication: {
+          id: 'edit-med',
+          name: 'Existing medicine',
+          dosage: 'Existing dose',
+          times: ['08:00', '14:00', '21:00'],
+          frequency: { type: 'interval', everyNDays: 5 },
+          startDate: '2026-11-01',
+          endDate: '2026-12-31',
+          notes: 'Existing notes',
+          active: false,
+        },
+      }),
+    );
     expect(html).toContain('Edit Medication Schedule');
-    for (const value of ['08:00', '14:00', '21:00', '5', '2026-12-31']) expect(html).toContain(`value="${value}"`);
+    for (const value of ['08:00', '14:00', '21:00', '5', '2026-12-31'])
+      expect(html).toContain(`value="${value}"`);
     expect(html).toContain('value="interval" selected=""');
     expect(html).not.toContain('checked=""');
   });
   it('renders preparation notes as safe text and offers both calendar formats and directions', () => {
-    const html = renderInDemo(React.createElement(AppointmentCard, { appointment: { id: 'test', doctorName: 'Doctor', specialty: 'Review', dateTime: '2026-11-20T10:30:00+05:30', location: 'Clinic & Ward', notes: '<script>alert(1)</script>\nBring ECG report' } }));
+    const html = renderInDemo(
+      React.createElement(AppointmentCard, {
+        appointment: {
+          id: 'test',
+          doctorName: 'Doctor',
+          specialty: 'Review',
+          dateTime: '2026-11-20T10:30:00+05:30',
+          location: 'Clinic & Ward',
+          notes: '<script>alert(1)</script>\nBring ECG report',
+        },
+      }),
+    );
     expect(html).not.toContain('<script>');
     expect(html).toContain('Bring ECG report');
     expect(html).toContain('Checkmarks stay on this device');
@@ -87,15 +126,21 @@ describe('Offline frontend rendering', () => {
   });
 });
 
-
 describe('Hindi care experience', () => {
   it('renders the homepage, medicine form and emergency guidance in Hindi without altering medicine names', () => {
-    const content = React.createElement(React.Fragment, null,
+    const content = React.createElement(
+      React.Fragment,
+      null,
       React.createElement(HomePage, { onOpen: () => undefined, onCircle: () => undefined }),
       React.createElement(MedicationModal, { onClose: () => undefined }),
       React.createElement(EmergencyDrawer, { onClose: () => undefined }),
     );
-    const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initialLanguage: 'hi', children: React.createElement(CareProvider, { children: content }) }));
+    const html = renderToStaticMarkup(
+      React.createElement(LanguageProvider, {
+        initialLanguage: 'hi',
+        children: React.createElement(CareProvider, { children: content }),
+      }),
+    );
     expect(html).toContain('अपनों जैसी।');
     expect(html).toContain('दवाई का नाम');
     expect(html).toContain('अभी 112 पर कॉल करें');
@@ -106,9 +151,17 @@ describe('Hindi care experience', () => {
   it('interpolates user values once and preserves unknown care text', () => {
     expect(translate('hi', 'Edit {0}', 'Medicine {1}')).toBe('Medicine {1} बदलें');
     expect(translate('en', 'Edit {0}', 'Medicine')).toBe('Edit Medicine');
-    expect(translate('hi', 'Untranslated prescription text')).toBe('Untranslated prescription text');
+    expect(translate('hi', 'Untranslated prescription text')).toBe(
+      'Untranslated prescription text',
+    );
   });
-  it.each(['मेरे सीने में तेज दर्द है', 'साँस नहीं आ रही', 'सांस लेने में दिक्कत है', 'वह बेहोश हैं', 'saans nahi aa rahi'])('prioritizes Hindi emergency language: %s', (message) => {
+  it.each([
+    'मेरे सीने में तेज दर्द है',
+    'साँस नहीं आ रही',
+    'सांस लेने में दिक्कत है',
+    'वह बेहोश हैं',
+    'saans nahi aa rahi',
+  ])('prioritizes Hindi emergency language: %s', (message) => {
     expect(decide(message).intent).toBe('urgent_safety');
   });
   it('recognizes Hindi missed-dose and appointment questions', () => {
