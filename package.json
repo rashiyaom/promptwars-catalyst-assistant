@@ -1,6 +1,23 @@
 {
   "name": "sanjeevani",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Bilingual (English/Hindi) elder-first medication coordination and care workspace with responsible AI guardrails",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rashiyaom/promptwars-catalyst-assistant.git"
+  },
+  "author": "rashiyaom",
+  "keywords": [
+    "elder-care",
+    "medication-coordination",
+    "healthcare-ai",
+    "react19",
+    "typescript",
+    "bilingual",
+    "hindi",
+    "guardrails"
+  ],
   "private": true,
   "type": "module",
   "engines": {
@@ -19,22 +36,31 @@
     "deploy": "npm run build --workspace @sanjeevani/web && firebase deploy --only hosting,firestore",
     "deploy:hosting": "npm run build --workspace @sanjeevani/web && firebase deploy --only hosting",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "audit": "npm audit --omit=dev --audit-level=high",
     "test:emulator": "npm run build --workspace @sanjeevani/functions && firebase emulators:exec --project demo-sanjeevani --only auth,firestore,functions \"node scripts/verify-emulator.mjs\"",
     "test:coverage": "vitest run --coverage",
-    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run build --workspace @sanjeevani/web",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run knip && npm run test:coverage && npm run build && node scripts/check-repository.mjs",
     "audit:ai": "node scripts/ai-evaluation-audit.mjs",
     "generate:pdf": "node scripts/generate-linkedin-pdf.mjs",
-    "demo": "VITE_MOCK_MODE=true npm run dev"
+    "demo": "cross-env VITE_MOCK_MODE=true npm run dev"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitest/coverage-v8": "^5.1.0",
+    "cross-env": "^10.1.0",
     "eslint": "^10.15.0",
+    "knip": "^6.45.1",
     "playwright": "^1.65.1",
+    "prettier": "^3.10.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"
