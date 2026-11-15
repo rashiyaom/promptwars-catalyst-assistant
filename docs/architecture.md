@@ -23,15 +23,15 @@ flowchart LR
 
 ## Identity and records
 
-| Path | Relationship and access |
-|---|---|
-| `users/{uid}` | Verified Firebase identity; self-only account reads/writes |
-| `users/{uid}/profiles/{profileId}` | Private index of that account's care profiles |
-| `profiles/{profileId}` | Elder name, timezone, owner, relationship and grace period |
-| `profiles/{profileId}/members/{uid}` | Authoritative role, separate from the browser's labels |
-| `profiles/{profileId}/medications/{id}` | Validated prescribed schedules entered by the user |
-| `profiles/{profileId}/doseLogs/{id}` | Taken/skipped self-reports for individual scheduled doses |
-| `profiles/{profileId}/appointments/{id}` | Date/time, clinician, location and preparation notes |
+| Path                                     | Relationship and access                                    |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `users/{uid}`                            | Verified Firebase identity; self-only account reads/writes |
+| `users/{uid}/profiles/{profileId}`       | Private index of that account's care profiles              |
+| `profiles/{profileId}`                   | Elder name, timezone, owner, relationship and grace period |
+| `profiles/{profileId}/members/{uid}`     | Authoritative role, separate from the browser's labels     |
+| `profiles/{profileId}/medications/{id}`  | Validated prescribed schedules entered by the user         |
+| `profiles/{profileId}/doseLogs/{id}`     | Taken/skipped self-reports for individual scheduled doses  |
+| `profiles/{profileId}/appointments/{id}` | Date/time, clinician, location and preparation notes       |
 
 Creating a personal profile atomically writes the profile, owner's membership and private index. A self-profile assigns elder access; creating an elder's profile assigns caretaker access to its owner. No public registration field grants a doctor/admin role. Shared invitations are disabled in the current free deployment. Doctor/family role policies and their tests remain in the experimental backend; this is not a claim that shared onboarding is live.
 

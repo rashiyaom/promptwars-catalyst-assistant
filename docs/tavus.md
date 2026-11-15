@@ -2,17 +2,17 @@
 
 Taus is Sanjeevani's care companion. Tavus supplies its optional face-to-face video interface; Sarvam supplies the separate local text-to-speech path. These are distinct integrations.
 
-| Setting | Value |
-|---|---|
-| Deployment | `d7a059cb-5260-40d7-bcb8-26d508c505a0` |
-| PAL supplied by project owner | `pf82fa0bcaeb` |
-| Face supplied by project owner | `r291e545fd67` |
-| Public deployment availability | Available when inspected on 2026-11-15 |
-| Provider-enforced maximum | 240 seconds |
-| Provider-enforced daily allowance | 1 call per user |
-| Context | Selected profile only, after explicit consent |
-| Persistent patient memory | Disabled in the page configuration |
-| Database writes | Not available to the video PAL |
+| Setting                           | Value                                         |
+| --------------------------------- | --------------------------------------------- |
+| Deployment                        | `d7a059cb-5260-40d7-bcb8-26d508c505a0`        |
+| PAL supplied by project owner     | `pf82fa0bcaeb`                                |
+| Face supplied by project owner    | `r291e545fd67`                                |
+| Public deployment availability    | Available when inspected on 2026-11-15        |
+| Provider-enforced maximum         | 240 seconds                                   |
+| Provider-enforced daily allowance | 1 call per user                               |
+| Context                           | Selected profile only, after explicit consent |
+| Persistent patient memory         | Disabled in the page configuration            |
+| Database writes                   | Not available to the video PAL                |
 
 **NOTE: Only one call per day allowed for 4 minutes in premier subscription.** “Premier” is the project owner's app-tier wording. The deployment's public initialization response confirms the numeric limits; this is not a statement about Tavus's commercial plan names or pricing. Provider visitor limits are not a verified Firebase-account subscription entitlement.
 

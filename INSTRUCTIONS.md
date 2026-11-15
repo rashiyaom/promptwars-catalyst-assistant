@@ -1,4 +1,5 @@
 # HACKATHON WINNING BLUEPRINT & AI AGENT CODING RULES
+
 **Event:** PromptWars x Catalyst (Hack2Skill / Google for Developers)  
 **Target:** 100% Score on Automated AI Evaluation & Judge Assessment
 
@@ -6,13 +7,13 @@
 
 ## 1. Non-Negotiable Hard Constraints (Disqualification Gates)
 
-| Rule | Requirement | Verification Step |
-| :--- | :--- | :--- |
-| **Repo Size** | **Strictly < 10 MB** | Ensure `.gitignore` ignores `node_modules/`, `venv/`, `.env`, caches, coverage files, and media. Run `git count-objects -vH` to verify before push. |
-| **Branch Limit** | **Exactly 1 branch (`main`)** | No feature branches on remote. Delete local/remote feature branches before submission. |
-| **Visibility** | **Public Repository** | Must be accessible to the AI evaluation engine without authentication. |
-| **Zero Hardcoded Secrets** | **No exposed API keys or tokens** | Use `.env.example`. Check git diff before every commit. |
-| **Submission Limit** | **Max 2 Attempts** | Test locally and verify end-to-end so Attempt #1 is 100% production-ready. |
+| Rule                       | Requirement                       | Verification Step                                                                                                                                   |
+| :------------------------- | :-------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Repo Size**              | **Strictly < 10 MB**              | Ensure `.gitignore` ignores `node_modules/`, `venv/`, `.env`, caches, coverage files, and media. Run `git count-objects -vH` to verify before push. |
+| **Branch Limit**           | **Exactly 1 branch (`main`)**     | No feature branches on remote. Delete local/remote feature branches before submission.                                                              |
+| **Visibility**             | **Public Repository**             | Must be accessible to the AI evaluation engine without authentication.                                                                              |
+| **Zero Hardcoded Secrets** | **No exposed API keys or tokens** | Use `.env.example`. Check git diff before every commit.                                                                                             |
+| **Submission Limit**       | **Max 2 Attempts**                | Test locally and verify end-to-end so Attempt #1 is 100% production-ready.                                                                          |
 
 ---
 
@@ -21,6 +22,7 @@
 Automated AI code evaluators parse the repository tree, run static analysis, execute test suites, analyze prompt architectures, and read the `README.md`. Every file written must score maximum points across all 3 tiers:
 
 ### 🔴 High Impact (Score Drivers — Must Be Flawless)
+
 1. **Problem Statement & Vertical Alignment:**
    - Explicitly define the chosen vertical, target persona, and real-world problem.
    - Embed domain-specific heuristics, terminology, and operational constraints into the assistant's prompts and decision engine.
@@ -50,6 +52,7 @@ Automated AI code evaluators parse the repository tree, run static analysis, exe
    - Explicit statement of assumptions and edge case coverage.
 
 ### 🟡 Medium Impact (Differentiators — Elevated Scoring)
+
 1. **Efficiency & Resource Optimization:**
    - Full asynchronous non-blocking I/O (`async`/`await`).
    - In-memory / LRU caching for frequent operations and prompt templates.
@@ -67,6 +70,7 @@ Automated AI code evaluators parse the repository tree, run static analysis, exe
    - Informative, polite error messages with recovery options.
 
 ### 🟢 Low Impact (Final Polish — Perfect Score Enablers)
+
 1. **Developer Experience & Tooling:**
    - Clean `.gitignore` and `.env.example`.
    - Formatted and linted code (PEP 8 / Prettier).
