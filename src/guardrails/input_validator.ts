@@ -18,9 +18,7 @@ const INJECTION_PATTERN =
  * @returns InputValidation object indicating whether input was accepted
  */
 export function validateInput(input: string): InputValidation {
-  const sanitized = input
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-    .trim();
+  const sanitized = input.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
 
   if (!sanitized) {
     return {

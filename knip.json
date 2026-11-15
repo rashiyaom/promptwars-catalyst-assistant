@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@5/overview/configuration.json",
+  "ignoreBinaries": ["firebase"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs"],
+      "project": ["scripts/*.mjs", "tests/**/*.ts"],
+      "ignoreDependencies": ["firebase", "firebase-admin"]
+    },
+    "src": {
+      "project": ["**/*.ts"]
+    },
+    "shared": {
+      "entry": ["types/*.ts", "schemas/*.ts"],
+      "project": ["**/*.ts"]
+    },
+    "web": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "functions": {
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

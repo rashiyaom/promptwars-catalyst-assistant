@@ -52,11 +52,7 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
 
   try {
     const decision = decide(validation.sanitized);
-    memory.add(
-      request.sessionId,
-      validation.sanitized,
-      loadConfig().maxSessionMessages
-    );
+    memory.add(request.sessionId, validation.sanitized, loadConfig().maxSessionMessages);
     const response = await mockTool.respond({
       intent: decision.intent,
       message: validation.sanitized,

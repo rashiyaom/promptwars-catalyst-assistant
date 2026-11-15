@@ -37,7 +37,7 @@ export function decide(message: string): Decision {
 
   if (
     /\b(missed|forgot|late)\b.{0,40}\b(dose|medicine|medication|pill)\b|(?:दवा|दवाई|गोली|खुराक).{0,40}(?:भूल|छूट|छोड़|देर)|(?:भूल|छूट|देर).{0,40}(?:दवा|दवाई|गोली|खुराक)|dawai?.{0,20}bhool/i.test(
-      message
+      message,
     )
   ) {
     return {
@@ -48,11 +48,7 @@ export function decide(message: string): Decision {
     };
   }
 
-  if (
-    /\b(appointment|doctor|clinic|visit)\b|डॉक्टर|डाक्टर|मुलाकात|क्लिनिक|अपॉइंटमेंट/i.test(
-      message
-    )
-  ) {
+  if (/\b(appointment|doctor|clinic|visit)\b|डॉक्टर|डाक्टर|मुलाकात|क्लिनिक|अपॉइंटमेंट/i.test(message)) {
     return {
       intent: 'appointment',
       urgency: 'routine',
