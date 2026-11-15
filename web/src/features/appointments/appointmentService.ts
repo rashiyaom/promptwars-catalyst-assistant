@@ -10,14 +10,14 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import type { Appointment } from '@sanjeevani/shared/types/appointment';
-import { appointmentInputSchema, type AppointmentInput } from '@sanjeevani/shared/schemas/appointment';
+import {
+  appointmentInputSchema,
+  type AppointmentInput,
+} from '@sanjeevani/shared/schemas/appointment';
 import { getFirebaseClients } from '../../lib/firebase.js';
 
 /** Add a validated appointment for a member of the care profile. */
-export async function addAppointment(
-  profileId: string,
-  input: AppointmentInput,
-): Promise<string> {
+export async function addAppointment(profileId: string, input: AppointmentInput): Promise<string> {
   const clients = getFirebaseClients();
   const memberId = clients?.auth.currentUser?.uid;
   if (!clients || !memberId) throw new Error('Sign in to add an appointment.');

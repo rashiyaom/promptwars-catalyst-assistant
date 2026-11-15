@@ -21,7 +21,9 @@ onBackgroundMessage(messaging, (payload) => {
   const title = payload.notification?.title ?? 'Sanjeevani care reminder';
   const body = payload.notification?.body ?? 'Open Sanjeevani to review a care-circle update.';
   const worker = self as unknown as {
-    registration: { showNotification(title: string, options: { body: string; icon: string }): Promise<void> };
+    registration: {
+      showNotification(title: string, options: { body: string; icon: string }): Promise<void>;
+    };
   };
   void worker.registration.showNotification(title, { body, icon: '/icon.svg' });
 });

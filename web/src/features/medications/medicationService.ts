@@ -28,10 +28,7 @@ export async function listMedications(profileId: string): Promise<Medication[]> 
 }
 
 /** Add a schedule entered by a profile member with medication edit permission. */
-export async function addMedication(
-  profileId: string,
-  input: MedicationInput,
-): Promise<string> {
+export async function addMedication(profileId: string, input: MedicationInput): Promise<string> {
   const clients = getFirebaseClients();
   if (!clients) throw new Error('Medication storage is unavailable in offline demo mode.');
   const parsed = medicationInputSchema.safeParse(input);
@@ -52,20 +49,37 @@ export async function listDoseLogs(profileId: string): Promise<DoseLog[]> {
   const clients = getFirebaseClients();
   if (!clients) return [];
   const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
-  const result = await getDocs(query(reference, where('scheduledFor', '>=', Timestamp.fromMillis(Date.now() - 8 * 86400000)), orderBy('scheduledFor', 'desc'), limit(1000)));
+  const result = await getDocs(
+    query(
+      reference,
+      where('scheduledFor', '>=', Timestamp.fromMillis(Date.now() - 8 * 86400000)),
+      orderBy('scheduledFor', 'desc'),
+      limit(1000),
+    ),
+  );
   return result.docs.map((item) => {
     const data = item.data();
     return {
       id: item.id,
       medicationId: String(data.medicationId ?? ''),
-      nextReminderAt: data.nextReminderAt instanceof Timestamp ? data.nextReminderAt.toDate().toISOString() : null,
+      nextReminderAt:
+        data.nextReminderAt instanceof Timestamp
+          ? data.nextReminderAt.toDate().toISOString()
+          : null,
       snoozeCount: Number(data.snoozeCount ?? 0),
-      scheduledFor: data.scheduledFor instanceof Timestamp ? data.scheduledFor.toDate().toISOString() : '',
+      scheduledFor:
+        data.scheduledFor instanceof Timestamp ? data.scheduledFor.toDate().toISOString() : '',
       status: data.status as DoseLog['status'],
       loggedBy: typeof data.loggedBy === 'string' ? data.loggedBy : null,
       loggedAt: data.loggedAt instanceof Timestamp ? data.loggedAt.toDate().toISOString() : null,
-      reminderSentAt: data.reminderSentAt instanceof Timestamp ? data.reminderSentAt.toDate().toISOString() : null,
-      missedAlertSentAt: data.missedAlertSentAt instanceof Timestamp ? data.missedAlertSentAt.toDate().toISOString() : null,
+      reminderSentAt:
+        data.reminderSentAt instanceof Timestamp
+          ? data.reminderSentAt.toDate().toISOString()
+          : null,
+      missedAlertSentAt:
+        data.missedAlertSentAt instanceof Timestamp
+          ? data.missedAlertSentAt.toDate().toISOString()
+          : null,
     };
   });
 }
@@ -83,7 +97,13 @@ export async function logDose(
   const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
   const target = doc(reference, doseLogId);
   if (!(await getDoc(target)).exists() && dose) {
-    await setDoc(target, { medicationId: dose.medicationId, scheduledFor: Timestamp.fromDate(new Date(dose.scheduledFor)), status, loggedBy: memberId, loggedAt: Timestamp.now() });
+    await setDoc(target, {
+      medicationId: dose.medicationId,
+      scheduledFor: Timestamp.fromDate(new Date(dose.scheduledFor)),
+      status,
+      loggedBy: memberId,
+      loggedAt: Timestamp.now(),
+    });
   } else await updateDoc(target, { status, loggedBy: memberId, loggedAt: Timestamp.now() });
 }
 

@@ -35,7 +35,13 @@ export const INITIAL_MEMBERS: CareMember[] = [
   },
 ];
 
-INITIAL_MEMBERS.push({ uid: 'user-doctor-1', role: 'doctor', displayName: 'Dr. Asha Sharma', email: 'asha.doctor@example.com', joinedAt: '2026-11-01T08:00:00Z' });
+INITIAL_MEMBERS.push({
+  uid: 'user-doctor-1',
+  role: 'doctor',
+  displayName: 'Dr. Asha Sharma',
+  email: 'asha.doctor@example.com',
+  joinedAt: '2026-11-01T08:00:00Z',
+});
 
 export const INITIAL_MEDICATIONS: Medication[] = [
   {
@@ -91,4 +97,3 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     notes: 'Annual diabetic retinopathy eye checkup.',
   },
 ];
-

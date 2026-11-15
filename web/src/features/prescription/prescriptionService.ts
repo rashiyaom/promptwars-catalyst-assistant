@@ -1,5 +1,11 @@
 import { medicationInputSchema, type MedicationInput } from '@sanjeevani/shared/schemas/medication';
-import { callGroqChat, callGroqVision, isGroqConfigured } from '../groq/groqClient.js';
+import {
+  callGroqChat,
+  callGroqVision,
+  isGroqConfigured,
+  GROQ_TEXT_MODEL,
+  GROQ_VISION_MODEL,
+} from '../groq/groqClient.js';
 
 export interface PrescriptionExtractionResult {
   readonly success: boolean;
@@ -27,7 +33,9 @@ Output ONLY valid JSON containing {"medications": [...]}. No other markdown or e
 export async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read the prescription file.'));
+    reader.onerror = () => {
+      reject(new Error('Failed to read the prescription file.'));
+    };
     reader.onload = () => {
       if (typeof reader.result === 'string') resolve(reader.result);
       else reject(new Error('Failed to encode image to base64.'));
@@ -47,13 +55,55 @@ export function extractMedicationFallback(text: string): MedicationInput[] {
 
   // Common drug dictionary with English and Hindi transliterations
   const knownMeds = [
-    { name: 'Metformin', regex: /metformin|glycomet|मेटफ़ॉर्मिन|ग्लूकोफ़ेज/i, defaultDosage: '500 mg', defaultTimes: ['08:00', '20:00'], notes: 'Take after meals with water' },
-    { name: 'Amlodipine', regex: /amlodipine|norvasc|एम्लोडिपिन/i, defaultDosage: '5 mg', defaultTimes: ['09:00'], notes: 'Take in the morning for blood pressure' },
-    { name: 'Paracetamol', regex: /paracetamol|crocin|dolo|calpol|पैरासिटामोल|डोलों?|क्रोसीन/i, defaultDosage: '650 mg', defaultTimes: ['08:00', '14:00', '20:00'], notes: 'Take after meals for fever/pain' },
-    { name: 'Atorvastatin', regex: /atorvastatin|lipitor|एटोरवास्टेटिन/i, defaultDosage: '20 mg', defaultTimes: ['21:00'], notes: 'Take at night after dinner' },
-    { name: 'Pantoprazole', regex: /pantoprazole|pan[- ]?40|पैंटोप्राज़ोल/i, defaultDosage: '40 mg', defaultTimes: ['07:30'], notes: 'Take on empty stomach 30 mins before breakfast' },
-    { name: 'Telmisartan', regex: /telmisartan|telma|टेल्मिसार्टन/i, defaultDosage: '40 mg', defaultTimes: ['09:00'], notes: 'Take regularly in the morning' },
-    { name: 'Aspirin', regex: /aspirin|ecosprin|एस्पिरिन/i, defaultDosage: '75 mg', defaultTimes: ['13:00'], notes: 'Take with or after lunch' },
+    {
+      name: 'Metformin',
+      regex: /metformin|glycomet|मेटफ़ॉर्मिन|ग्लूकोफ़ेज/i,
+      defaultDosage: '500 mg',
+      defaultTimes: ['08:00', '20:00'],
+      notes: 'Take after meals with water',
+    },
+    {
+      name: 'Amlodipine',
+      regex: /amlodipine|norvasc|एम्लोडिपिन/i,
+      defaultDosage: '5 mg',
+      defaultTimes: ['09:00'],
+      notes: 'Take in the morning for blood pressure',
+    },
+    {
+      name: 'Paracetamol',
+      regex: /paracetamol|crocin|dolo|calpol|पैरासिटामोल|डोलों?|क्रोसीन/i,
+      defaultDosage: '650 mg',
+      defaultTimes: ['08:00', '14:00', '20:00'],
+      notes: 'Take after meals for fever/pain',
+    },
+    {
+      name: 'Atorvastatin',
+      regex: /atorvastatin|lipitor|एटोरवास्टेटिन/i,
+      defaultDosage: '20 mg',
+      defaultTimes: ['21:00'],
+      notes: 'Take at night after dinner',
+    },
+    {
+      name: 'Pantoprazole',
+      regex: /pantoprazole|pan[- ]?40|पैंटोप्राज़ोल/i,
+      defaultDosage: '40 mg',
+      defaultTimes: ['07:30'],
+      notes: 'Take on empty stomach 30 mins before breakfast',
+    },
+    {
+      name: 'Telmisartan',
+      regex: /telmisartan|telma|टेल्मिसार्टन/i,
+      defaultDosage: '40 mg',
+      defaultTimes: ['09:00'],
+      notes: 'Take regularly in the morning',
+    },
+    {
+      name: 'Aspirin',
+      regex: /aspirin|ecosprin|एस्पिरिन/i,
+      defaultDosage: '75 mg',
+      defaultTimes: ['13:00'],
+      notes: 'Take with or after lunch',
+    },
   ];
 
   const results: MedicationInput[] = [];
@@ -61,7 +111,7 @@ export function extractMedicationFallback(text: string): MedicationInput[] {
   for (const med of knownMeds) {
     if (med.regex.test(text)) {
       // Look for custom dosage e.g. "1000 mg", "10mg", or "650 मिलीग्राम"
-      const doseMatch = text.match(/(\d+)\s*(?:mg|ml|mcg|gm|मिलीग्राम|एमजी)/i);
+      const doseMatch = /(\d+)\s*(?:mg|ml|mcg|gm|मिलीग्राम|एमजी)/i.exec(text);
       let dosage = med.defaultDosage;
       if (doseMatch) {
         dosage = `${doseMatch[1]} mg`;
@@ -89,12 +139,14 @@ export function extractMedicationFallback(text: string): MedicationInput[] {
   // If no known drug matches, attempt a generic heuristic extraction
   if (results.length === 0 && text.trim().length > 3) {
     const words = text.trim().split(/\s+/);
-    const candidateName = words[0].replace(/[^a-zA-Z0-9]/g, '');
-    const doseMatch = text.match(/(\d+\s*(?:mg|ml|mcg|gm|tablet|pills?))/i);
-    const dosage = doseMatch ? doseMatch[1].trim() : '1 tablet';
+    const candidateName = words[0]?.replace(/[^a-zA-Z0-9]/g, '') ?? '';
+    const doseMatch = /(\d+\s*(?:mg|ml|mcg|gm|tablet|pills?))/i.exec(text);
+    const dosage = doseMatch?.[1]?.trim() ?? '1 tablet';
 
     results.push({
-      name: candidateName.charAt(0).toUpperCase() + candidateName.slice(1).toLowerCase() || 'Prescribed Medicine',
+      name:
+        candidateName.charAt(0).toUpperCase() + candidateName.slice(1).toLowerCase() ||
+        'Prescribed Medicine',
       dosage,
       times: ['08:00', '20:00'],
       frequency: { type: 'daily' },
@@ -117,7 +169,11 @@ export async function parsePrescriptionFromText(
 ): Promise<PrescriptionExtractionResult> {
   const trimmed = text.trim();
   if (!trimmed) {
-    return { success: false, medications: [], error: 'Please provide prescription text or speech.' };
+    return {
+      success: false,
+      medications: [],
+      error: 'Please provide prescription text or speech.',
+    };
   }
 
   const today = getTodayIso();
@@ -129,16 +185,22 @@ export async function parsePrescriptionFromText(
       success: meds.length > 0,
       medications: meds,
       rawText: trimmed,
-      error: meds.length === 0 ? 'No medication could be identified. Please enter details manually.' : undefined,
+      error:
+        meds.length === 0
+          ? 'No medication could be identified. Please enter details manually.'
+          : undefined,
     };
   }
 
   try {
     const prompt = `Prescription input (today is ${today}):\n"${trimmed}"\n\nExtract all prescribed medicines into {"medications": [...]}.`;
-    const responseJson = await callGroqChat([
-      { role: 'system', content: PRESCRIPTION_SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ], { jsonMode: true, temperature: 0.1 });
+    const responseJson = await callGroqChat(
+      [
+        { role: 'system', content: PRESCRIPTION_SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      { jsonMode: true, temperature: 0.1, model: GROQ_TEXT_MODEL },
+    );
 
     const parsed = JSON.parse(responseJson) as { medications?: unknown[] };
     if (!Array.isArray(parsed.medications) || parsed.medications.length === 0) {
@@ -173,7 +235,12 @@ export async function parsePrescriptionFromText(
       success: fallback.length > 0,
       medications: fallback,
       rawText: trimmed,
-      error: fallback.length === 0 ? (error instanceof Error ? error.message : 'Extraction failed') : undefined,
+      error:
+        fallback.length === 0
+          ? error instanceof Error
+            ? error.message
+            : 'Extraction failed'
+          : undefined,
     };
   }
 }
@@ -210,7 +277,8 @@ export async function parsePrescriptionFromImage(
           active: true,
         },
       ],
-      rawText: 'Prescription scanned in offline demo mode: Metformin 500 mg twice daily with meals.',
+      rawText:
+        'Prescription scanned in offline demo mode: Metformin 500 mg twice daily with meals.',
     };
   }
 
@@ -219,14 +287,21 @@ export async function parsePrescriptionFromImage(
 Transcribe the written medications and instructions, then return strict JSON matching {"medications": [...]}.
 Include: name, dosage, times (HH:mm 24h format), frequency ({type: 'daily'}), startDate ("${today}"), endDate (or null), notes.`;
 
-    const responseJson = await callGroqVision(prompt, base64Url, { jsonMode: true });
-    const parsed = JSON.parse(responseJson) as { medications?: unknown[]; transcribedText?: string };
+    const responseJson = await callGroqVision(prompt, base64Url, {
+      jsonMode: true,
+      model: GROQ_VISION_MODEL,
+    });
+    const parsed = JSON.parse(responseJson) as {
+      medications?: unknown[];
+      transcribedText?: string;
+    };
 
     if (!Array.isArray(parsed.medications) || parsed.medications.length === 0) {
       return {
         success: false,
         medications: [],
-        error: 'No legible medications detected in this prescription photo. Please ensure clear lighting and legible text.',
+        error:
+          'No legible medications detected in this prescription photo. Please ensure clear lighting and legible text.',
       };
     }
 
@@ -249,7 +324,8 @@ Include: name, dosage, times (HH:mm 24h format), frequency ({type: 'daily'}), st
       success: validated.length > 0,
       medications: validated,
       rawText: parsed.transcribedText,
-      error: validated.length === 0 ? 'Extracted fields did not meet medication schema.' : undefined,
+      error:
+        validated.length === 0 ? 'Extracted fields did not meet medication schema.' : undefined,
     };
   } catch (error) {
     return {

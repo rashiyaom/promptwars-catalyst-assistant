@@ -66,7 +66,11 @@ export async function ensureCareAccount(): Promise<void> {
   // The cached ID token may predate verification in another tab. Firestore checks
   // its email_verified claim, not User.emailVerified. Refresh before any reads.
   await user.getIdToken(true);
-  await setDoc(doc(clients.db, 'users', user.uid), { uid: user.uid, email: user.email, displayName: user.displayName ?? '' });
+  await setDoc(doc(clients.db, 'users', user.uid), {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName ?? '',
+  });
 }
 
 export async function resendVerification(): Promise<void> {

@@ -44,7 +44,11 @@ function SanjeevaniApp(): React.JSX.Element {
   const activeTab = useRoute();
   const setActiveTab = navigate;
   const authenticated = isDemo ? demoActive : isLiveConnected;
-  useEffect(() => { if (activeTab === 'connect') rememberInvitation(); if (activeTab === 'login' && authenticated) navigate(pendingInvitation() ? 'connect' : 'account'); }, [activeTab, authenticated]);
+  useEffect(() => {
+    if (activeTab === 'connect') rememberInvitation();
+    if (activeTab === 'login' && authenticated)
+      navigate(pendingInvitation() ? 'connect' : 'account');
+  }, [activeTab, authenticated]);
   const [showSosAlert, setShowSosAlert] = useState(false);
 
   // Modals state
@@ -54,19 +58,41 @@ function SanjeevaniApp(): React.JSX.Element {
   const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
   const [intakeInitialMode, setIntakeInitialMode] = useState<'photo' | 'voice'>('photo');
 
-  useEffect(() => { setIsMedModalOpen(false); setIsApptModalOpen(false); setIsIntakeModalOpen(false); setShowSosAlert(false); }, [activeProfile.id]);
+  useEffect(() => {
+    setIsMedModalOpen(false);
+    setIsApptModalOpen(false);
+    setIsIntakeModalOpen(false);
+    setShowSosAlert(false);
+  }, [activeProfile.id]);
 
   const handleReadScheduleAloud = () => {
     const pendingDoses = todayDoses.filter((dose) => dose.status === 'pending');
     if (!pendingDoses.length) {
-      speakText(t(todayDoses.length ? 'No pending doses remain in today’s schedule.' : 'No doses are scheduled for today.'));
+      speakText(
+        t(
+          todayDoses.length
+            ? 'No pending doses remain in today’s schedule.'
+            : 'No doses are scheduled for today.',
+        ),
+      );
       return;
     }
-    speakText(t('Today’s pending medicines are: {0}.', pendingDoses.map((dose) => {
-      const med = medications.find((item) => item.id === dose.medicationId);
-      const time = new Intl.DateTimeFormat(locale, { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(dose.scheduledFor));
-      return t('{0}, {1}, scheduled at {2}', med?.name ?? '', med?.dosage ?? '', time);
-    }).join('. ')));
+    speakText(
+      t(
+        'Today’s pending medicines are: {0}.',
+        pendingDoses
+          .map((dose) => {
+            const med = medications.find((item) => item.id === dose.medicationId);
+            const time = new Intl.DateTimeFormat(locale, {
+              timeZone: activeProfile.timezone,
+              hour: 'numeric',
+              minute: '2-digit',
+            }).format(new Date(dose.scheduledFor));
+            return t('{0}, {1}, scheduled at {2}', med?.name ?? '', med?.dosage ?? '', time);
+          })
+          .join('. '),
+      ),
+    );
   };
 
   const openSection = (section: CareSection) => {
@@ -82,10 +108,21 @@ function SanjeevaniApp(): React.JSX.Element {
 
   const renderMainContent = (): React.JSX.Element => {
     if (activeTab === 'home') {
-      return <HomePage onOpen={openSection} onCircle={() => navigate('account')} />;
+      return (
+        <HomePage
+          onOpen={openSection}
+          onCircle={() => {
+            navigate('account');
+          }}
+        />
+      );
     }
     if (!authReady) {
-      return <p role="status" className="page-shell">{t('Loading care profile…')}</p>;
+      return (
+        <p role="status" className="page-shell">
+          {t('Loading care profile…')}
+        </p>
+      );
     }
     if (!authenticated || activeTab === 'login') {
       return <AuthPage />;
@@ -97,7 +134,11 @@ function SanjeevaniApp(): React.JSX.Element {
       return <AccountPage />;
     }
     if (!activeProfile.id) {
-      return <p role="status" className="page-shell">{t('Loading care profile…')}</p>;
+      return (
+        <p role="status" className="page-shell">
+          {t('Loading care profile…')}
+        </p>
+      );
     }
     return (
       <div className="page-shell" id="workspace" tabIndex={-1}>
@@ -110,7 +151,12 @@ function SanjeevaniApp(): React.JSX.Element {
             <button className="chip" onClick={toggleElderMode} aria-pressed={isElderMode}>
               {t(isElderMode ? 'Large text on' : 'Large text')}
             </button>
-            <button className="chip" onClick={() => navigate('account')}>
+            <button
+              className="chip"
+              onClick={() => {
+                navigate('account');
+              }}
+            >
               {t('Care Circle')} ↗
             </button>
             <label className="role-badge" htmlFor="role-select">
@@ -119,10 +165,14 @@ function SanjeevaniApp(): React.JSX.Element {
                 id="role-select"
                 value={role}
                 disabled={!isDemo}
-                onChange={(e) => setRole(e.target.value as MemberRole)}
+                onChange={(e) => {
+                  setRole(e.target.value as MemberRole);
+                }}
               >
                 {(['elder', 'caretaker', 'family', 'doctor'] as const).map((value) => (
-                  <option key={value} value={value}>{t(value)}</option>
+                  <option key={value} value={value}>
+                    {t(value)}
+                  </option>
                 ))}
               </select>
             </label>
@@ -136,7 +186,9 @@ function SanjeevaniApp(): React.JSX.Element {
             <button
               key={section}
               className={`tab-button ${activeTab === section ? 'active' : ''}`}
-              onClick={() => setActiveTab(section)}
+              onClick={() => {
+                setActiveTab(section);
+              }}
               aria-pressed={activeTab === section}
             >
               {t(label)}
@@ -149,7 +201,12 @@ function SanjeevaniApp(): React.JSX.Element {
         {activeTab === 'assistant' && (
           <>
             <TavusConversation key={`video:${activeProfile.id}:${language}`} />
-            <TausAgent key={`${activeProfile.id}:${role}`} onEmergency={() => setShowSosAlert(true)} />
+            <TausAgent
+              key={`${activeProfile.id}:${role}`}
+              onEmergency={() => {
+                setShowSosAlert(true);
+              }}
+            />
           </>
         )}
 
@@ -157,29 +214,58 @@ function SanjeevaniApp(): React.JSX.Element {
           <section className="card" aria-labelledby="med-title">
             <div className="section-heading">
               <div>
-                <h2 id="med-title" className="card-title">{t('Daily Medication Routine')}</h2>
+                <h2 id="med-title" className="card-title">
+                  {t('Daily Medication Routine')}
+                </h2>
                 <p className="card-subtitle">
-                  {t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> · {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}
+                  {t('Today’s adherence')}: <strong>{adherenceScore.percentage}%</strong> ·{' '}
+                  {adherenceScore.taken}/{adherenceScore.total} {t('doses taken')}
                 </p>
               </div>
               <div className="action-row">
-                <button className="chip" onClick={handleReadScheduleAloud}>{t('Listen Aloud')}</button>
+                <button className="chip" onClick={handleReadScheduleAloud}>
+                  {t('Listen Aloud')}
+                </button>
                 {canManageMedication && (
                   <>
-                    <button className="chip" onClick={() => { setIntakeInitialMode('photo'); setIsIntakeModalOpen(true); }}>
+                    <button
+                      className="chip"
+                      onClick={() => {
+                        setIntakeInitialMode('photo');
+                        setIsIntakeModalOpen(true);
+                      }}
+                    >
                       📷 {t('Scan Prescription')}
                     </button>
-                    <button className="chip" onClick={() => { setIntakeInitialMode('voice'); setIsIntakeModalOpen(true); }}>
+                    <button
+                      className="chip"
+                      onClick={() => {
+                        setIntakeInitialMode('voice');
+                        setIsIntakeModalOpen(true);
+                      }}
+                    >
                       🎙️ {t('Speak Prescription')}
                     </button>
-                    <button className="send-button" onClick={() => { setEditingMedication(undefined); setIsMedModalOpen(true); }}>
+                    <button
+                      className="send-button"
+                      onClick={() => {
+                        setEditingMedication(undefined);
+                        setIsMedModalOpen(true);
+                      }}
+                    >
                       + {t('Add Medication')}
                     </button>
                   </>
                 )}
               </div>
             </div>
-            <MedicationTimeline key={activeProfile.id} onEdit={(med) => { setEditingMedication(med); setIsMedModalOpen(true); }} />
+            <MedicationTimeline
+              key={activeProfile.id}
+              onEdit={(med) => {
+                setEditingMedication(med);
+                setIsMedModalOpen(true);
+              }}
+            />
           </section>
         )}
 
@@ -187,15 +273,27 @@ function SanjeevaniApp(): React.JSX.Element {
           <section className="card" aria-labelledby="appt-title">
             <div className="section-heading">
               <div>
-                <h2 id="appt-title" className="card-title">{t('Upcoming Appointments')}</h2>
-                <p className="card-subtitle">{t('Care-circle appointments and specialist clinic checkups.')}</p>
+                <h2 id="appt-title" className="card-title">
+                  {t('Upcoming Appointments')}
+                </h2>
+                <p className="card-subtitle">
+                  {t('Care-circle appointments and specialist clinic checkups.')}
+                </p>
               </div>
-              <button className="send-button" disabled={!canEdit} onClick={() => setIsApptModalOpen(true)}>
+              <button
+                className="send-button"
+                disabled={!canEdit}
+                onClick={() => {
+                  setIsApptModalOpen(true);
+                }}
+              >
                 + {t('Schedule Appointment')}
               </button>
             </div>
             {!appointments.length && (
-              <p className="empty-state">{t('No appointments yet. Schedule a visit to start preparing.')}</p>
+              <p className="empty-state">
+                {t('No appointments yet. Schedule a visit to start preparing.')}
+              </p>
             )}
             {appointments.map((item) => (
               <AppointmentCard key={`${activeProfile.id}:${item.id}`} appointment={item} />
@@ -208,26 +306,177 @@ function SanjeevaniApp(): React.JSX.Element {
     );
   };
 
-  return <div className={isElderMode ? 'elder-mode-root' : ''}>
-    <a className="skip-link" href="#main">{t('Skip to care content')}</a>
-    <div className="announcement"><span>{t('Everyday care, closer to home.')}</span><span>{t(isDemo ? 'Offline Demo' : isLiveConnected ? 'Firebase connected' : 'Sign-in required')} <i className="connection-dot" aria-hidden="true" /></span></div>
-    <header className="site-header">
-      <a className="brand" href="#main" onClick={() => setActiveTab('home')} aria-label={t('Sanjeevani Elder Care Home')}><span className="brand-mark" aria-hidden="true">✚</span><span>{t('Sanjeevani')}</span></a>
-      <nav className="site-nav" aria-label={t('Home')}><a href="#main" aria-current={activeTab === 'home' ? 'page' : undefined} onClick={() => setActiveTab('home')}>{t('Home')}</a><a href="#how-it-works" onClick={() => setActiveTab('home')}>{t('How it works')}</a><button onClick={() => openSection('assistant')}>{t('My care space')}</button></nav>
-      <div className="header-controls"><div className="language-switch" role="group" aria-label="Language / भाषा"><button lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button><button lang="hi" aria-pressed={language === 'hi'} onClick={() => setLanguage('hi')}>हिन्दी</button></div><button className="header-account" onClick={() => navigate(authenticated ? 'account' : 'login')}>{authenticated ? t('Account') : t('Sign in')} <span aria-hidden="true">↗</span></button><button className="sos-button" onClick={() => setShowSosAlert(true)}>{t('SOS · Emergency help')}</button></div>
-    </header>
-    <main id="main" tabIndex={-1}>
-      {renderMainContent()}
-    </main>
-    <footer className="site-footer"><div className="footer-top"><a className="brand" href="#main" onClick={() => setActiveTab('home')}><span className="brand-mark" aria-hidden="true">✚</span>{t('Sanjeevani')}</a><p>{t('Care, with people at its heart.')}</p><button className="text-button" onClick={() => navigate('account')}>{t('Care Circle')} ↗</button></div><p className="privacy-note"><strong>{t('Safety Notice:')}</strong> {t('Sanjeevani supports care coordination. It does not diagnose, prescribe, or replace professional medical advice. In an emergency, contact your local emergency services (112 / 911).')}</p><div className="footer-bottom"><span>{t('Built with care. Designed to be simple.')}</span><span>English / हिन्दी</span></div></footer>
-    {isMedModalOpen && <MedicationModal medication={editingMedication} onClose={() => setIsMedModalOpen(false)} />}
-    {isIntakeModalOpen && <PrescriptionIntakeModal initialMode={intakeInitialMode} onClose={() => setIsIntakeModalOpen(false)} />}
-    {isApptModalOpen && <AppointmentModal isOpen onClose={() => setIsApptModalOpen(false)} />}
-    {showSosAlert && <EmergencyDrawer onClose={() => setShowSosAlert(false)} />}
-  </div>;
+  return (
+    <div className={isElderMode ? 'elder-mode-root' : ''}>
+      <a className="skip-link" href="#main">
+        {t('Skip to care content')}
+      </a>
+      <div className="announcement">
+        <span>{t('Everyday care, closer to home.')}</span>
+        <span>
+          {t(isDemo ? 'Offline Demo' : isLiveConnected ? 'Firebase connected' : 'Sign-in required')}{' '}
+          <i className="connection-dot" aria-hidden="true" />
+        </span>
+      </div>
+      <header className="site-header">
+        <a
+          className="brand"
+          href="#main"
+          onClick={() => {
+            setActiveTab('home');
+          }}
+          aria-label={t('Sanjeevani Elder Care Home')}
+        >
+          <span className="brand-mark" aria-hidden="true">
+            ✚
+          </span>
+          <span>{t('Sanjeevani')}</span>
+        </a>
+        <nav className="site-nav" aria-label={t('Home')}>
+          <a
+            href="#main"
+            aria-current={activeTab === 'home' ? 'page' : undefined}
+            onClick={() => {
+              setActiveTab('home');
+            }}
+          >
+            {t('Home')}
+          </a>
+          <a
+            href="#how-it-works"
+            onClick={() => {
+              setActiveTab('home');
+            }}
+          >
+            {t('How it works')}
+          </a>
+          <button
+            onClick={() => {
+              openSection('assistant');
+            }}
+          >
+            {t('My care space')}
+          </button>
+        </nav>
+        <div className="header-controls">
+          <div className="language-switch" role="group" aria-label="Language / भाषा">
+            <button
+              lang="en"
+              aria-pressed={language === 'en'}
+              onClick={() => {
+                setLanguage('en');
+              }}
+            >
+              EN
+            </button>
+            <button
+              lang="hi"
+              aria-pressed={language === 'hi'}
+              onClick={() => {
+                setLanguage('hi');
+              }}
+            >
+              हिन्दी
+            </button>
+          </div>
+          <button
+            className="header-account"
+            onClick={() => {
+              navigate(authenticated ? 'account' : 'login');
+            }}
+          >
+            {authenticated ? t('Account') : t('Sign in')} <span aria-hidden="true">↗</span>
+          </button>
+          <button
+            className="sos-button"
+            onClick={() => {
+              setShowSosAlert(true);
+            }}
+          >
+            {t('SOS · Emergency help')}
+          </button>
+        </div>
+      </header>
+      <main id="main" tabIndex={-1}>
+        {renderMainContent()}
+      </main>
+      <footer className="site-footer">
+        <div className="footer-top">
+          <a
+            className="brand"
+            href="#main"
+            onClick={() => {
+              setActiveTab('home');
+            }}
+          >
+            <span className="brand-mark" aria-hidden="true">
+              ✚
+            </span>
+            {t('Sanjeevani')}
+          </a>
+          <p>{t('Care, with people at its heart.')}</p>
+          <button
+            className="text-button"
+            onClick={() => {
+              navigate('account');
+            }}
+          >
+            {t('Care Circle')} ↗
+          </button>
+        </div>
+        <p className="privacy-note">
+          <strong>{t('Safety Notice:')}</strong>{' '}
+          {t(
+            'Sanjeevani supports care coordination. It does not diagnose, prescribe, or replace professional medical advice. In an emergency, contact your local emergency services (112 / 911).',
+          )}
+        </p>
+        <div className="footer-bottom">
+          <span>{t('Built with care. Designed to be simple.')}</span>
+          <span>English / हिन्दी</span>
+        </div>
+      </footer>
+      {isMedModalOpen && (
+        <MedicationModal
+          medication={editingMedication}
+          onClose={() => {
+            setIsMedModalOpen(false);
+          }}
+        />
+      )}
+      {isIntakeModalOpen && (
+        <PrescriptionIntakeModal
+          initialMode={intakeInitialMode}
+          onClose={() => {
+            setIsIntakeModalOpen(false);
+          }}
+        />
+      )}
+      {isApptModalOpen && (
+        <AppointmentModal
+          isOpen
+          onClose={() => {
+            setIsApptModalOpen(false);
+          }}
+        />
+      )}
+      {showSosAlert && (
+        <EmergencyDrawer
+          onClose={() => {
+            setShowSosAlert(false);
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 /** Root providers preserve the care session when switching languages. */
 export function App(): React.JSX.Element {
-  return <LanguageProvider><CareProvider><SanjeevaniApp /></CareProvider></LanguageProvider>;
+  return (
+    <LanguageProvider>
+      <CareProvider>
+        <SanjeevaniApp />
+      </CareProvider>
+    </LanguageProvider>
+  );
 }

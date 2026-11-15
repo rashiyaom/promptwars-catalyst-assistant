@@ -16,6 +16,9 @@ export function loadFunctionConfig(
   return {
     mockMode: environment.MOCK_MODE?.toLowerCase() !== 'false',
     graceMinutes,
-    emailFrom: environment.EMAIL_FROM?.trim() || null,
+    emailFrom:
+      environment.EMAIL_FROM && environment.EMAIL_FROM.trim().length > 0
+        ? environment.EMAIL_FROM.trim()
+        : null,
   };
 }

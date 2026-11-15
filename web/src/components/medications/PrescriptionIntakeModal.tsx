@@ -2,19 +2,26 @@ import React, { useRef, useState } from 'react';
 import type { MedicationInput } from '@sanjeevani/shared/schemas/medication';
 import { useLanguage } from '../../i18n/LanguageContext.js';
 import { useCare } from '../../context/CareContext.js';
-import { parsePrescriptionFromImage, parsePrescriptionFromText } from '../../features/prescription/prescriptionService.js';
+import {
+  parsePrescriptionFromImage,
+  parsePrescriptionFromText,
+} from '../../features/prescription/prescriptionService.js';
 
 interface Recognition {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
-  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+  onresult:
+    ((event: { results: Record<number, Record<number, { transcript: string }>> }) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
   start(): void;
   abort(): void;
 }
-type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => Recognition;
+  webkitSpeechRecognition?: new () => Recognition;
+};
 
 interface Props {
   readonly onClose: () => void;
@@ -22,7 +29,11 @@ interface Props {
   readonly initialMode?: 'photo' | 'voice';
 }
 
-export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo' }: Props): React.JSX.Element {
+export function PrescriptionIntakeModal({
+  onClose,
+  onAdded,
+  initialMode = 'photo',
+}: Props): React.JSX.Element {
   const { t, locale, language } = useLanguage();
   const { addMedication, canManageMedication } = useCare();
 
@@ -65,7 +76,10 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
     try {
       const result = await parsePrescriptionFromImage(selectedFile || imagePreview!);
       if (!result.success || result.medications.length === 0) {
-        setError(result.error || t('Could not read medications from this image. Please ensure good lighting.'));
+        setError(
+          result.error ||
+            t('Could not read medications from this image. Please ensure good lighting.'),
+        );
       } else {
         setExtractedMeds(result.medications);
       }
@@ -83,9 +97,15 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
       return;
     }
 
-    const Constructor = (window as SpeechWindow).SpeechRecognition ?? (window as SpeechWindow).webkitSpeechRecognition;
+    const Constructor =
+      (window as SpeechWindow).SpeechRecognition ??
+      (window as SpeechWindow).webkitSpeechRecognition;
     if (!Constructor) {
-      setError(t('Voice recognition is not supported in this browser. Please type your prescription below.'));
+      setError(
+        t(
+          'Voice recognition is not supported in this browser. Please type your prescription below.',
+        ),
+      );
       return;
     }
 
@@ -112,7 +132,9 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
       }
     };
 
-    instance.onend = () => setListening(false);
+    instance.onend = () => {
+      setListening(false);
+    };
 
     try {
       instance.start();
@@ -173,15 +195,21 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
         role="dialog"
         aria-modal="true"
         aria-labelledby="intake-title"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
       >
         <div className="section-heading">
           <div>
             <p className="eyebrow">{t('AI PRESCRIPTION DIGITIZATION')}</p>
             <h2 id="intake-title">{t('Add Prescription with AI')}</h2>
-            <p className="card-subtitle">{t('Upload a photo or dictate doctor instructions in English or Hindi.')}</p>
+            <p className="card-subtitle">
+              {t('Upload a photo or dictate doctor instructions in English or Hindi.')}
+            </p>
           </div>
-          <button className="btn-skip" onClick={onClose} aria-label={t('Close')}>✕</button>
+          <button className="btn-skip" onClick={onClose} aria-label={t('Close')}>
+            ✕
+          </button>
         </div>
 
         <div className="mode-toggle" role="tablist">
@@ -190,7 +218,10 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
             role="tab"
             aria-selected={mode === 'photo'}
             className={`tab-button ${mode === 'photo' ? 'active' : ''}`}
-            onClick={() => { setMode('photo'); setError(null); }}
+            onClick={() => {
+              setMode('photo');
+              setError(null);
+            }}
           >
             📷 {t('Scan Photo')}
           </button>
@@ -199,13 +230,20 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
             role="tab"
             aria-selected={mode === 'voice'}
             className={`tab-button ${mode === 'voice' ? 'active' : ''}`}
-            onClick={() => { setMode('voice'); setError(null); }}
+            onClick={() => {
+              setMode('voice');
+              setError(null);
+            }}
           >
             🎙️ {t('Speak Prescription')}
           </button>
         </div>
 
-        {error && <div className="pill-status-box error-box" role="alert"><p>{error}</p></div>}
+        {error && (
+          <div className="pill-status-box error-box" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
 
         {mode === 'photo' && (
           <div className="intake-section">
@@ -221,7 +259,11 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
               />
               {imagePreview && (
                 <div className="preview-container">
-                  <img src={imagePreview} alt={t('Prescription preview')} className="rx-preview-img" />
+                  <img
+                    src={imagePreview}
+                    alt={t('Prescription preview')}
+                    className="rx-preview-img"
+                  />
                 </div>
               )}
             </div>
@@ -234,14 +276,20 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
               >
                 {busy ? t('Analyzing with AI…') : t('Extract Medicines from Photo')}
               </button>
-              <button type="button" className="btn-skip" onClick={onClose}>{t('Cancel')}</button>
+              <button type="button" className="btn-skip" onClick={onClose}>
+                {t('Cancel')}
+              </button>
             </div>
           </div>
         )}
 
         {mode === 'voice' && (
           <div className="intake-section">
-            <p>{t('Speak your prescription naturally (e.g. "Take Paracetamol 650mg twice a day at 9am and 9pm after food for 5 days").')}</p>
+            <p>
+              {t(
+                'Speak your prescription naturally (e.g. "Take Paracetamol 650mg twice a day at 9am and 9pm after food for 5 days").',
+              )}
+            </p>
             <div className="voice-controls">
               <button
                 type="button"
@@ -256,8 +304,14 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
               className="chat-input"
               rows={3}
               value={speechText}
-              onChange={(e) => setSpeechText(e.target.value)}
-              placeholder={language === 'hi' ? 'यहाँ बोलें या लिखें (जैसे: मेटफ़ॉर्मिन 500 मिलीग्राम दिन में दो बार खाना खाने के बाद)...' : 'Speak or type here (e.g. Metformin 500mg twice a day after meals)...'}
+              onChange={(e) => {
+                setSpeechText(e.target.value);
+              }}
+              placeholder={
+                language === 'hi'
+                  ? 'यहाँ बोलें या लिखें (जैसे: मेटफ़ॉर्मिन 500 मिलीग्राम दिन में दो बार खाना खाने के बाद)...'
+                  : 'Speak or type here (e.g. Metformin 500mg twice a day after meals)...'
+              }
               aria-label={t('Prescription text')}
             />
             <div className="action-row">
@@ -269,7 +323,9 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
               >
                 {busy ? t('Extracting with AI…') : t('Extract Medicines from Text')}
               </button>
-              <button type="button" className="btn-skip" onClick={onClose}>{t('Cancel')}</button>
+              <button type="button" className="btn-skip" onClick={onClose}>
+                {t('Cancel')}
+              </button>
             </div>
           </div>
         )}
@@ -283,8 +339,12 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
                 return (
                   <div key={`${med.name}-${index}`} className="med-review-card">
                     <div>
-                      <h4>{med.name} · {med.dosage}</h4>
-                      <p className="times-badge">⏰ {med.times.join(', ')} · {med.frequency.type}</p>
+                      <h4>
+                        {med.name} · {med.dosage}
+                      </h4>
+                      <p className="times-badge">
+                        ⏰ {med.times.join(', ')} · {med.frequency.type}
+                      </p>
                       <p className="notes-text">📝 {med.notes}</p>
                     </div>
                     <button
@@ -301,7 +361,12 @@ export function PrescriptionIntakeModal({ onClose, onAdded, initialMode = 'photo
             </div>
             {extractedMeds.length > 1 && (
               <div className="action-row">
-                <button type="button" className="send-button" onClick={handleAddAll} disabled={!canManageMedication}>
+                <button
+                  type="button"
+                  className="send-button"
+                  onClick={handleAddAll}
+                  disabled={!canManageMedication}
+                >
                   {t('Add All to Schedule')}
                 </button>
               </div>

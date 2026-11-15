@@ -7,10 +7,21 @@ import { fileURLToPath } from 'node:url';
 const webRoot = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), { name: 'local-sarvam-speech', configureServer(server) {
-    const env = loadEnv(mode, resolve(webRoot, '..'), 'SARVAM_');
-    server.middlewares.use(sarvamMiddleware(env.SARVAM_API_KEY ?? '', resolve(webRoot, '../.env.sarvam-budget.json')));
-  } }],
+  plugins: [
+    react(),
+    {
+      name: 'local-sarvam-speech',
+      configureServer(server) {
+        const env = loadEnv(mode, resolve(webRoot, '..'), 'SARVAM_');
+        server.middlewares.use(
+          sarvamMiddleware(
+            env.SARVAM_API_KEY ?? '',
+            resolve(webRoot, '../.env.sarvam-budget.json'),
+          ),
+        );
+      },
+    },
+  ],
   envDir: '..',
   build: {
     rollupOptions: {
@@ -19,9 +30,10 @@ export default defineConfig(({ mode }) => ({
         'firebase-messaging-sw': resolve(webRoot, 'src/firebase-messaging-sw.ts'),
       },
       output: {
-        entryFileNames: (chunk) => chunk.name === 'firebase-messaging-sw'
-          ? 'firebase-messaging-sw.js'
-          : 'assets/[name]-[hash].js',
+        entryFileNames: (chunk) =>
+          chunk.name === 'firebase-messaging-sw'
+            ? 'firebase-messaging-sw.js'
+            : 'assets/[name]-[hash].js',
       },
     },
   },

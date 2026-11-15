@@ -13,7 +13,8 @@
     "@sanjeevani/shared": "*",
     "firebase": "^12.1.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.3.0",

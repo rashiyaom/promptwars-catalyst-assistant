@@ -5,7 +5,8 @@
 
 export interface GroqChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
+  content:
+    string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[];
 }
 
 export interface GroqChatOptions {
@@ -16,12 +17,16 @@ export interface GroqChatOptions {
 }
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-export const GROQ_TEXT_MODEL = 'openai/gpt-oss-20b';
-export const GROQ_VISION_MODEL = 'qwen/qwen3.8-27b';
+export const GROQ_TEXT_MODEL = import.meta?.env?.VITE_GROQ_TEXT_MODEL || 'openai/gpt-oss-20b';
+export const GROQ_VISION_MODEL = import.meta?.env?.VITE_GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
 
 /** Get the configured Groq API key from Vite client or server environment. */
-export function getGroqApiKey(): string {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GROQ_API_KEY) {
+function getGroqApiKey(): string {
+  // Production security guarantee: Never bake provider API keys into client bundles.
+  if (import.meta?.env?.PROD) {
+    return '';
+  }
+  if (import.meta?.env?.VITE_GROQ_API_KEY) {
     return String(import.meta.env.VITE_GROQ_API_KEY).trim();
   }
   if (typeof process !== 'undefined' && process.env?.GROQ_API_KEY) {
@@ -59,7 +64,9 @@ export async function callGroqChat(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, 25000);
 
   try {
     const response = await fetch(GROQ_ENDPOINT, {
@@ -84,8 +91,8 @@ export async function callGroqChat(
       throw new Error(message);
     }
 
-    const data = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
     };
 
     const content = data.choices?.[0]?.message?.content;

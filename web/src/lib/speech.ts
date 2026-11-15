@@ -34,8 +34,8 @@ export async function speak(text: string, locale: string, onEnd?: () => void, on
       const data = await response.json() as { audio: string };
       if (current !== version) return;
       activeAudio = new Audio(`data:audio/wav;base64,${data.audio}`);
-      activeAudio.onended = () => finish();
-      activeAudio.onerror = () => finish(true);
+      activeAudio.onended = () => { finish(); };
+      activeAudio.onerror = () => { finish(true); };
       await activeAudio.play();
       return;
     } catch { if (current !== version) return; }
@@ -43,7 +43,7 @@ export async function speak(text: string, locale: string, onEnd?: () => void, on
   if (!window.speechSynthesis) { finish(true); return; }
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = locale; utterance.rate = 0.9;
-  utterance.onend = () => finish();
-  utterance.onerror = () => finish(true);
+  utterance.onend = () => { finish(); };
+  utterance.onerror = () => { finish(true); };
   window.speechSynthesis.speak(utterance);
 }

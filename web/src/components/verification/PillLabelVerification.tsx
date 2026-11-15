@@ -1,7 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext.js';
 import { useCare } from '../../context/CareContext.js';
-import { checkPillStripLabel, type PillStripCheck } from '../../features/verification/pillStripService.js';
+import {
+  checkPillStripLabel,
+  type PillStripCheck,
+} from '../../features/verification/pillStripService.js';
 
 export function PillLabelVerification(): React.JSX.Element {
   const { t, language } = useLanguage();
@@ -75,12 +78,16 @@ export function PillLabelVerification(): React.JSX.Element {
       setSelectedMedName('Metformin');
       setSelectedDosage('500 mg');
       // Simulated packaging sample dataUrl
-      setImagePreview('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" style="background:%23f5f5f5"><rect width="380" height="180" x="10" y="10" rx="10" fill="%23fff" stroke="%23303610" stroke-width="2"/><text x="30" y="60" font-family="sans-serif" font-size="22" font-weight="bold" fill="%23111">Metformin HCl Tablets</text><text x="30" y="95" font-family="sans-serif" font-size="18" fill="%23555">500 mg</text><text x="30" y="130" font-family="sans-serif" font-size="14" fill="%23777">Batch: MF2026 Exp: 12/2028</text></svg>');
+      setImagePreview(
+        'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" style="background:%23f5f5f5"><rect width="380" height="180" x="10" y="10" rx="10" fill="%23fff" stroke="%23303610" stroke-width="2"/><text x="30" y="60" font-family="sans-serif" font-size="22" font-weight="bold" fill="%23111">Metformin HCl Tablets</text><text x="30" y="95" font-family="sans-serif" font-size="18" fill="%23555">500 mg</text><text x="30" y="130" font-family="sans-serif" font-size="14" fill="%23777">Batch: MF2026 Exp: 12/2028</text></svg>',
+      );
       setSelectedFile(null);
     } else {
       setSelectedMedName('Metformin');
       setSelectedDosage('500 mg');
-      setImagePreview('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" style="background:%23ffebee"><rect width="380" height="180" x="10" y="10" rx="10" fill="%23fff" stroke="%23c62828" stroke-width="2"/><text x="30" y="60" font-family="sans-serif" font-size="22" font-weight="bold" fill="%23c62828">Atorvastatin Calcium</text><text x="30" y="95" font-family="sans-serif" font-size="18" fill="%23555">20 mg</text><text x="30" y="130" font-family="sans-serif" font-size="14" fill="%23777">Batch: AT991 Exp: 05/2027</text></svg>');
+      setImagePreview(
+        'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" style="background:%23ffebee"><rect width="380" height="180" x="10" y="10" rx="10" fill="%23fff" stroke="%23c62828" stroke-width="2"/><text x="30" y="60" font-family="sans-serif" font-size="22" font-weight="bold" fill="%23c62828">Atorvastatin Calcium</text><text x="30" y="95" font-family="sans-serif" font-size="18" fill="%23555">20 mg</text><text x="30" y="130" font-family="sans-serif" font-size="14" fill="%23777">Batch: AT991 Exp: 05/2027</text></svg>',
+      );
       setSelectedFile(null);
     }
   };
@@ -90,14 +97,18 @@ export function PillLabelVerification(): React.JSX.Element {
       <div className="section-heading">
         <div>
           <p className="eyebrow">{t('SAFETY & VERIFICATION LAYER')}</p>
-          <h2 id="pill-title" className="card-title">{t('Real Pill Strip Label Verification')}</h2>
+          <h2 id="pill-title" className="card-title">
+            {t('Real Pill Strip Label Verification')}
+          </h2>
           <p className="card-subtitle">
             {hi
               ? 'दवा खाने से पहले पैकेट या स्ट्रिप पर लिखे नाम को अपनी निर्धारित दवा से AI द्वारा मिलाएँ।'
               : 'Verify printed medicine strips, blister foils, or bottles against your scheduled prescription using AI Vision.'}
           </p>
         </div>
-        <span className="taus-orb" aria-hidden="true">🔍</span>
+        <span className="taus-orb" aria-hidden="true">
+          🔍
+        </span>
       </div>
 
       <div className="verification-steps">
@@ -142,10 +153,22 @@ export function PillLabelVerification(): React.JSX.Element {
             </button>
             <div className="sample-buttons">
               <span className="small-note">{t('Or try sample packaging:')}</span>
-              <button type="button" className="chip" onClick={() => handleLoadSample('match')}>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  handleLoadSample('match');
+                }}
+              >
                 {t('Sample Match')}
               </button>
-              <button type="button" className="chip" onClick={() => handleLoadSample('mismatch')}>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  handleLoadSample('mismatch');
+                }}
+              >
                 {t('Sample Mismatch')}
               </button>
             </div>
@@ -153,7 +176,11 @@ export function PillLabelVerification(): React.JSX.Element {
 
           {imagePreview && (
             <div className="preview-container">
-              <img src={imagePreview} alt={t('Medicine package preview')} className="rx-preview-img" />
+              <img
+                src={imagePreview}
+                alt={t('Medicine package preview')}
+                className="rx-preview-img"
+              />
             </div>
           )}
         </div>
@@ -163,7 +190,9 @@ export function PillLabelVerification(): React.JSX.Element {
             <input
               type="checkbox"
               checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
+              onChange={(e) => {
+                setConsent(e.target.checked);
+              }}
             />
             {hi
               ? 'मैं समझता/समझती हूँ कि यह सहायता केवल मुद्रित पाठ (टेक्स्ट) की जाँच करती है, गोली के अंदर की रासायनिक पहचान की नहीं।'
@@ -183,7 +212,11 @@ export function PillLabelVerification(): React.JSX.Element {
         </div>
       </div>
 
-      {error && <div className="pill-status-box error-box" role="alert"><p>{error}</p></div>}
+      {error && (
+        <div className="pill-status-box error-box" role="alert">
+          <p>{error}</p>
+        </div>
+      )}
 
       {result && (
         <div
@@ -193,15 +226,25 @@ export function PillLabelVerification(): React.JSX.Element {
         >
           <div className="result-header">
             <span className="result-badge" aria-hidden="true">
-              {result.result === 'label_matches' ? '✅' : result.result === 'label_differs' ? '⚠️' : 'ℹ️'}
+              {result.result === 'label_matches'
+                ? '✅'
+                : result.result === 'label_differs'
+                  ? '⚠️'
+                  : 'ℹ️'}
             </span>
             <div>
               <h3>
                 {result.result === 'label_matches'
-                  ? (hi ? 'जाँच सफल: पैकेट आपकी दवा से मेल खाता है' : 'Verified Match: Label Matches Schedule')
+                  ? hi
+                    ? 'जाँच सफल: पैकेट आपकी दवा से मेल खाता है'
+                    : 'Verified Match: Label Matches Schedule'
                   : result.result === 'label_differs'
-                  ? (hi ? 'चेतावनी: पैकेट आपकी दवा से भिन्न है!' : 'CAUTION: Label Differs From Schedule!')
-                  : (hi ? 'पैकेट स्पष्ट नहीं है: देखभालकर्ता से पूछें' : 'Unclear Label: Verify with Caregiver')}
+                    ? hi
+                      ? 'चेतावनी: पैकेट आपकी दवा से भिन्न है!'
+                      : 'CAUTION: Label Differs From Schedule!'
+                    : hi
+                      ? 'पैकेट स्पष्ट नहीं है: देखभालकर्ता से पूछें'
+                      : 'Unclear Label: Verify with Caregiver'}
               </h3>
               <p className="result-message">{result.message}</p>
             </div>
@@ -215,7 +258,8 @@ export function PillLabelVerification(): React.JSX.Element {
             )}
             {result.detectedDosage && (
               <p>
-                <strong>{t('Detected dosage:')}</strong> {result.detectedDosage} (Scheduled: {selectedDosage})
+                <strong>{t('Detected dosage:')}</strong> {result.detectedDosage} (Scheduled:{' '}
+                {selectedDosage})
               </p>
             )}
             {result.batchOrExpiry && (

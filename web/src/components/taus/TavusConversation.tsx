@@ -3,8 +3,9 @@ import { useLanguage } from '../../i18n/LanguageContext.js';
 import { useCare } from '../../context/CareContext.js';
 import {
   buildTavusContext,
+  TAVUS_DAILY_CALLS,
   TAVUS_DEPLOYMENT_ID,
-  TAVUS_MAX_CALL_SECONDS
+  TAVUS_MAX_CALL_SECONDS,
 } from '../../features/taus/tavusContext.js';
 import { stopSpeech } from '../../lib/speech.js';
 
@@ -37,7 +38,7 @@ export function TavusConversation(): React.JSX.Element {
     doses: todayDoses,
     appointments,
     language,
-    now: new Date().toISOString().slice(0, 16) + ':00.000Z'
+    now: new Date().toISOString().slice(0, 16) + ':00.000Z',
   });
 
   const contextRef = useRef(context);
@@ -63,10 +64,10 @@ export function TavusConversation(): React.JSX.Element {
           conversation: { unique_memory_tag: false },
           preview: {
             title: 'Meet Sanjeevan',
-            description: 'Your Sanjeevani care companion'
-          }
-        }
-      })
+            description: 'Your Sanjeevani care companion',
+          },
+        },
+      }),
     );
 
     let callTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -92,7 +93,7 @@ export function TavusConversation(): React.JSX.Element {
       setStatus(
         isHindi
           ? 'वीडियो उपलब्ध नहीं है। नीचे ताऊस के टेक्स्ट और आवाज़ विकल्प इस्तेमाल करें।'
-          : 'Video is unavailable. Use Taus text and voice controls below.'
+          : 'Video is unavailable. Use Taus text and voice controls below.',
       );
     };
 
@@ -133,7 +134,7 @@ export function TavusConversation(): React.JSX.Element {
     if (startedRef.current) {
       element.sendMessage?.({
         event_type: 'conversation.overwrite_llm_context',
-        properties: { context }
+        properties: { context },
       });
     }
   }, [context]);
@@ -171,8 +172,8 @@ export function TavusConversation(): React.JSX.Element {
           <p className="small-note">
             <strong>{isHindi ? 'नोट:' : 'NOTE:'}</strong>{' '}
             {isHindi
-              ? 'प्रीमियर सदस्यता में प्रतिदिन केवल एक कॉल, 4 मिनट के लिए मान्य।'
-              : 'Only one call per day allowed for 4 minutes in premier subscription.'}
+              ? `प्रीमियर सदस्यता में प्रतिदिन केवल ${TAVUS_DAILY_CALLS} कॉल, ${Math.round(TAVUS_MAX_CALL_SECONDS / 60)} मिनट के लिए मान्य।`
+              : `Only ${TAVUS_DAILY_CALLS} call per day allowed for ${Math.round(TAVUS_MAX_CALL_SECONDS / 60)} minutes in premier subscription.`}
           </p>
           <p className="small-note">
             {isHindi
@@ -196,17 +197,15 @@ export function TavusConversation(): React.JSX.Element {
             <input
               type="checkbox"
               checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
+              onChange={(e) => {
+                setConsent(e.target.checked);
+              }}
             />
             {isHindi
               ? 'मैं इस प्रोफ़ाइल की ऊपर बताई गई जानकारी Tavus के साथ साझा करने के लिए सहमत हूँ।'
               : 'I agree to share the listed information from this profile with Tavus for this conversation.'}
           </label>
-          <button
-            className="send-button"
-            disabled={!consent}
-            onClick={handleOpenConversation}
-          >
+          <button className="send-button" disabled={!consent} onClick={handleOpenConversation}>
             {isHindi ? 'वीडियो बातचीत खोलें' : 'Open video conversation'}
           </button>
         </div>
