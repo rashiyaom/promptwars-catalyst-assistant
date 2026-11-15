@@ -1,0 +1,52 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Node dependencies & builds
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+
+# Environment variables & secrets (CRITICAL: Do not commit secrets)
+.env
+.env.*
+!.env.example
+
+# IDE & OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+
+# Large binaries & media
+*.mp4
+*.mov
+*.avi
+*.zip
+*.tar.gz
+*.tar
+*.iso
+*.bin
