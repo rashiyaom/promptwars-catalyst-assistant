@@ -17,6 +17,10 @@ service cloud.firestore {
     return get(memberPath(profileId)).data.role;
   }
 
+  function personalCreator(profileId) {
+    let profile = getAfter(/databases/$(database)/documents/profiles/$(profileId)).data;
+    return signedIn() && profile.ownerUid == request.auth.uid && profile.accessMode == 'personal';
+  }
   function canManageMedication(profileId) {
     return isMember(profileId) && role(profileId) in ['elder', 'caretaker', 'doctor'];
   }
@@ -84,20 +88,40 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
-      allow list, write: if false;
+      allow list, delete: if false;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','email','displayName'])
+        && request.resource.data.uid == uid && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100;
     }
     match /users/{uid}/profiles/{profileId} {
       allow get, list: if signedIn() && request.auth.uid == uid;
-      allow write: if false;
+      allow create: if request.auth.uid == uid && personalCreator(profileId)
+        && request.resource.data.profileId == profileId
+        && request.resource.data.ownerUid == uid;
+      allow update, delete: if false;
     }
 
     match /profiles/{profileId} {
       allow get, list: if isMember(profileId);
-      allow create, update, delete: if false;
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['elderName','timezone','relationship','ownerUid','createdBy','elderUid','graceMinutes','accessMode'])
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.accessMode == 'personal' && request.resource.data.graceMinutes == 30
+        && request.resource.data.relationship in ['self','parent','relative','other']
+        && request.resource.data.elderName is string && request.resource.data.elderName.size() > 0 && request.resource.data.elderName.size() <= 100
+        && request.resource.data.timezone is string && request.resource.data.timezone.size() <= 64
+        && request.resource.data.elderUid == (request.resource.data.relationship == 'self' ? request.auth.uid : null);
+      allow update, delete: if false;
 
       match /members/{uid} {
         allow read: if isMember(profileId);
-        allow write: if false;
+        allow create: if request.auth.uid == uid && personalCreator(profileId)
+          && request.resource.data.keys().hasOnly(['uid','role','email','displayName','joinedAt'])
+          && request.resource.data.uid == uid && request.resource.data.email == request.auth.token.email
+          && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100
+          && request.resource.data.joinedAt is timestamp
+          && request.resource.data.role == (getAfter(/databases/$(database)/documents/profiles/$(profileId)).data.relationship == 'self' ? 'elder' : 'caretaker');
+        allow update, delete: if false;
 
         match /private/{privateDocument}/pushTokens/{tokenId} {
           allow read: if false;
@@ -121,7 +145,14 @@ service cloud.firestore {
 
       match /doseLogs/{doseLogId} {
         allow read: if isMember(profileId);
-        allow create, delete: if false;
+        allow create: if canLogDose(profileId) && personalCreator(profileId)
+          && request.resource.data.keys().hasOnly(['medicationId','scheduledFor','status','loggedBy','loggedAt'])
+          && request.resource.data.medicationId is string
+          && exists(/databases/$(database)/documents/profiles/$(profileId)/medications/$(request.resource.data.medicationId))
+          && request.resource.data.scheduledFor is timestamp
+          && request.resource.data.status in ['taken','skipped']
+          && request.resource.data.loggedBy == request.auth.uid && request.resource.data.loggedAt is timestamp;
+        allow delete: if false;
         allow update: if canLogDose(profileId)
           && resource.data.status in ['pending', 'missed']
           && request.resource.data.status in ['taken', 'skipped']

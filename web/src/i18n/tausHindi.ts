@@ -4,6 +4,8 @@ export const tausHindi: Readonly<Record<string, string>> = {
   'Start with an empty care space. Add your own profiles, medicines and appointments after signing in.': 'अपना नया देखभाल केंद्र शुरू करें। साइन इन के बाद अपनी प्रोफ़ाइल, दवाइयाँ और मुलाकातें जोड़ें।',
   'Add your medicines and appointments': 'अपनी दवाइयाँ और मुलाकातें जोड़ें',
   'Connect your care circle': 'अपनों को जोड़ें',
+  'I saved a follow-up for {0} on this screen. Keep this page open; no background email is sent.': 'इस स्क्रीन पर {0} बजे का रिमाइंडर लगाया है। पेज खुला रखें; अपने-आप ईमेल नहीं भेजा जाएगा।',
+  'Free plan: profiles are private to your account. Shared invitations are unavailable.': 'मुफ़्त योजना में प्रोफ़ाइल आपके खाते तक सीमित है। साझा निमंत्रण उपलब्ध नहीं हैं।',
   'push': 'पुश सूचना',
   'Account': 'खाता', 'doctor': 'डॉक्टर', 'Talk to Taus': 'ताऊस से बात करें',
   '1. Your elder profiles': '१. आपकी बुज़ुर्ग प्रोफ़ाइल', '2. Connect your care circle': '२. अपनों को जोड़ें', '3. Trusted reminder contacts': '३. भरोसेमंद संपर्क',

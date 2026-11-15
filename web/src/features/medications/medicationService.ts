@@ -10,6 +10,8 @@ import {
   query,
   Timestamp,
   updateDoc,
+  setDoc,
+  getDoc,
 } from 'firebase/firestore';
 import type { DoseLog } from '@sanjeevani/shared/types/doseLog';
 import type { Medication } from '@sanjeevani/shared/types/medication';
@@ -73,15 +75,16 @@ export async function logDose(
   profileId: string,
   doseLogId: string,
   status: 'taken' | 'skipped',
+  dose?: DoseLog,
 ): Promise<void> {
   const clients = getFirebaseClients();
   const memberId = clients?.auth.currentUser?.uid;
   if (!clients || !memberId) throw new Error('Sign in to record a dose.');
   const reference = collection(clients.db, 'profiles', profileId, 'doseLogs');
-  await updateDoc(
-    doc(reference, doseLogId),
-    { status, loggedBy: memberId, loggedAt: Timestamp.now() },
-  );
+  const target = doc(reference, doseLogId);
+  if (!(await getDoc(target)).exists() && dose) {
+    await setDoc(target, { medicationId: dose.medicationId, scheduledFor: Timestamp.fromDate(new Date(dose.scheduledFor)), status, loggedBy: memberId, loggedAt: Timestamp.now() });
+  } else await updateDoc(target, { status, loggedBy: memberId, loggedAt: Timestamp.now() });
 }
 
 /** Update an existing medication schedule. */

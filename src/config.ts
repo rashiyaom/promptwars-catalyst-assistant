@@ -8,7 +8,7 @@ export interface AppConfig {
 
 /** Read and validate runtime settings from the process environment. */
 export function loadConfig(
-  environment: Readonly<Record<string, string | undefined>> = process.env,
+  environment: Readonly<Record<string, string | undefined>> = typeof process === 'undefined' ? {} : process.env,
 ): AppConfig {
   return {
     mockMode: environment.MOCK_MODE?.toLowerCase() !== 'false',

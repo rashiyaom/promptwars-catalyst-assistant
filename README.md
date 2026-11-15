@@ -1,277 +1,149 @@
-> Current delivery architecture: Firebase only. Authentication handles verification/reset emails; Cloud Functions and Firestore track reminders; FCM sends push notifications to connected caretaker devices. Custom reminder email and SMS are not supported. Enable browser notifications from Account and configure VITE_FIREBASE_VAPID_KEY. Deploy Firebase Functions, rules, indexes and Hosting before live use.
+<div align="center">
 
-# Sanjeevani — Elder Care & Medication Coordination
+# Sanjeevani × Taus
+### Independent living, one conversation at a time.
 
-> A shared, elder-first care space for organizing medication routines, appointments, and support from family and caregivers.
+**An elder-first care workspace in English and हिन्दी.**
 
-Built for the **PromptWars × Catalyst** challenge (Google for Developers, Build with AI).
+[Live website](https://sanjeevani-5b35b.web.app) · [Evaluation guide](docs/evaluation.md) · [Architecture](docs/architecture.md) · [Tavus setup](docs/tavus.md)
 
-## Project status
+![Verification workflow](https://github.com/rashiyaom/promptwars-catalyst-assistant/actions/workflows/ci.yml/badge.svg)
 
-This repository contains the Sanjeevani workspace: an accessible React shell, shared TypeScript models, Firebase client setup for Authentication, Firestore, AI Logic, App Check, and Messaging, callable profile access functions, scheduled dose generation and reminders, and Firebase Hosting configuration. Connect a Firebase project and configure its console settings before using live services; the bilingual public website, account flow and Taus care workspace are implemented. See [the account and Taus architecture](docs/architecture.md) for data relationships, reminder behavior and live setup.
+</div>
 
-## 1. Problem and intended users
+![Actual Sanjeevani homepage](docs/images/home.jpg)
 
-Older adults often coordinate medications, appointments, and care tasks across several people and channels. Missed or unclear handoffs can make routines harder to manage. Sanjeevani is intended for older adults first, with caregivers and family members included in a shared, permission-aware care circle.
+## The problem
 
-The product helps organize care information. It does not diagnose, prescribe, recommend medication changes, or replace a clinician or pharmacist. If a person may be experiencing an emergency, the assistant should direct them to immediate local emergency help.
+An older adult should not have to navigate several apps just to remember a medicine or prepare for a doctor visit. Sanjeevani brings that daily routine into one readable, bilingual space. A new verified account starts empty: its owner adds themselves or an elder, their prescribed medicines and appointments. Real accounts never inherit demo patients.
 
-## 2. What exists and what is planned
+Built for **PromptWars × Catalyst**, in the **elder care and medication coordination** vertical. This is a coordination aid, not a diagnostic service or a replacement for clinicians.
 
-| Area | Status |
+## MVP differentiator: meet Taus
+
+<table><tr><td width="220"><img src="web/public/images/taus-avatar.jpg" width="200" alt="Actual Tavus avatar configured for Taus" /></td><td>
+
+**A conversation grounded in the selected elder's routine.**
+
+Taus can ask about a specific medicine, dose and time in Hindi or English. A clear confirmation saves that dose's self-report; “not yet” offers a bounded foreground follow-up. Medicine pictures, when supplied, are visual aids—not identification or safety verification.
+
+The optional **Tavus video PAL** receives the selected patient's name, medication schedules, today's dose status and upcoming appointments after explicit consent. The real deployment avatar appears on the page. Video access is **read-only**; the working Taus care controls handle saved actions.
+
+**NOTE: Only one call per day allowed for 4 minutes in premier subscription.** These numeric limits were verified in the deployment settings. “Premier” is this app's tier wording.
+
+</td></tr></table>
+
+**Speech:** Sarvam TTS follows the selected Hindi/English language in local development, with a private-key proxy, caching and daily caps. The hosted free-tier build uses device TTS. No paid voice service is needed to evaluate the core.
+
+**Verification:** context construction and access boundaries are tested. One live Tavus start attempt did not connect; a successful video conversation and spoken context acknowledgment are **not yet verified**. The avatar above comes from the deployment's real thumbnail, not a live-call capture. [Exact integration status →](docs/tavus.md)
+
+## See the actual system
+
+These are screenshots of the running application, not design mockups. The care workspace uses clearly labeled fictional offline fixtures; no private patient records are published.
+
+| English account screen | Hindi account screen |
 |---|---|
-| Accessible web workspace | Fully interactive; accessible care assistant chat, medication schedule adherence, appointments, and pill label OCR demo |
-| Assistant core | Typed intent and urgency rules, input checks, response filtering, short-term in-memory session history, and deterministic responses |
-| Offline behavior | Default mode requires no API key, Firebase project, or network service (Zero-friction evaluator testing) |
-| Shared care profiles and role-specific access | Verified email sign-in/registration, profile creation/joining and switching; server-derived live roles and a separate demo role selector |
-| Medication schedules and adherence logs | Morning/afternoon/evening/night timeline, full schedule editing, independent dose logging, and a seven-day adherence calendar |
-| Appointment management and reminders | Timezone-aware appointments, preparation checklists, directions, Google Calendar links and offline iCal downloads; scheduled reminders implemented |
-| Pill-strip label check | Firebase AI Logic interactive verification demo with consent boundary and visible package text comparison |
-| Hosting deployment | Firebase Hosting configuration serves the built React web app |
+| ![English sign-in](docs/images/sign-in.jpg) | ![Hindi sign-in](docs/images/sign-in-hindi.jpg) |
 
-The offline core and web workspace provide a complete, safe foundation for elder care coordination.
+<details>
+<summary><strong>Open the full Taus care workspace screenshot</strong></summary>
 
-## 3. Requirements traceability
+![Taus workspace with actual avatar, consent flow and dose confirmation controls](docs/images/taus-workspace.jpg)
 
-| Requirement | Planned implementation | Status |
-|---|---|---|
-| Shared access for elders, caregivers, and family | Firebase Authentication, profile membership, server-verified role access | Account, invitation and profile switching screens implemented |
-| View and manage medication schedules | Firestore medication service and shared model | Care workspace and service layer implemented |
-| Track taken, missed, and skipped doses | Auditable dose logs and scheduled generation | Dose timeline and adherence calendar implemented |
-| Manage upcoming appointments | Firestore appointment service and shared model | Care workspace and service layer implemented |
-| Elder-first accessible experience | React web app with keyboard support, readable text, high contrast, and clear recovery messages | Bilingual responsive screens implemented |
-| Reliable, secure behavior | Strict TypeScript, schema validation, guardrails, deterministic mock mode, and role-gated Firestore rules | Foundation in place; rule tests and live review remain |
+</details>
 
-## 4. Technology
+## Run in one command
 
-| Layer | Technology |
+Requires **Node.js 22.12+** and npm. From a clean checkout:
+
+```sh
+npm ci && npm run demo
+```
+
+Open the printed local URL → **Get started with Taus** → **Explore offline demo** → **My care space**. No Firebase project, account, model key or paid API is required. The ordinary demo stays offline; starting optional Tavus video is a separate, credit-consuming action.
+
+```sh
+npm run check          # Strict types, lint, tests + coverage, frontend build
+npm test               # All deterministic tests, no paid provider calls
+npm run test:coverage  # Scoped coverage report and ≥85% gates
+```
+
+To use your own Firebase account, follow [deployment and environment setup](docs/deployment.md). Never commit `.env` files.
+
+## What works—and what is not enabled
+
+| Capability | Current behavior |
 |---|---|
-| Language | TypeScript with strict compiler settings |
-| Web | React and Vite |
-| Assistant validation | Zod schemas and deterministic decision rules |
-| Cloud backend | Firebase Cloud Functions and Admin SDK |
-| Data | Cloud Firestore with member and role-based rules |
-| AI verification | Firebase AI Logic with Gemini for visible package text only |
-| Abuse protection | Firebase App Check with reCAPTCHA Enterprise |
-| Tests | Vitest offline tests; Firebase Emulator Suite available for live integration review |
+| English / हिन्दी website and account screens | Implemented; selected locale drives dates and speech |
+| Firebase email/password and verification | Connected; verified identity required by Firestore rules |
+| Your own profiles, medicines and appointments | Personal profiles stored in Firestore; no seeded live records |
+| Named-dose confirmation and adherence | Individual taken/skipped self-reports, schedule views and history |
+| Taus text and voice care controls | Deterministic intent/urgency handling with active-profile context |
+| Optional Tavus video | Consent + context bridge implemented; live connection unverified |
+| Sarvam TTS | Local-only secure integration; one prior Hindi API test succeeded |
+| Hosted TTS | Device speech; no server key in the browser |
+| Appointment preparation and calendar export | Notes, local checklist, directions and `.ics` export |
+| Foreground reminders | Session-local snoozes; page must remain open |
+| Doctor/family shared invitations | Disabled in current free deployment; experimental backend retained |
+| Medication emails / SMS / background scheduler | Not enabled; Auth verification/reset emails are separate |
+| Pill-label screen | Explicit sample simulation, not real medicine verification |
 
-## 5. Architecture
+## How the assistant makes decisions
 
 ```mermaid
 flowchart LR
-  UI[Accessible React UI] --> API[Validated app boundary]
-  API --> AGENT[Assistant orchestrator]
-  AGENT --> DECIDE[Intent and urgency decision engine]
-  DECIDE --> GUARD[Input and output guardrails]
-  AGENT --> MEMORY[Short-term session memory]
-  AGENT --> TOOLS[Deterministic mock tools]
-  TOOLS -. optional integration .-> FB[Firebase services]
-  FB --> PUSH[Firebase Cloud Messaging]
-  FB --> AI[Firebase AI Logic]
-  APP[App Check] -. protects .-> FB
+  Input[Hindi / English input] --> Validate[Schema + injection checks]
+  Validate --> Decision{Urgency and intent}
+  Decision -->|Possible emergency| Human[Immediate human help]
+  Decision -->|Missed dose| Referral[Prescribed instructions / pharmacist]
+  Decision -->|Routine care| Context[Selected profile and role]
+  Context --> Confirm[One named dose, explicit response]
+  Confirm --> Save[Firestore-checked write]
+  Save --> Reply[Acknowledge only after success]
 ```
 
-The assistant core runs without Firebase or a model key. Risk and intent decisions are deterministic. Live calls require a configured Firebase project and App Check. Scheduled Cloud Functions use server-side validation and authorization.
+The core is a typed rule engine, not a thin LLM wrapper. Urgency takes precedence over routine intents; ambiguous dose responses do not silently update records. Session history is bounded, schedules use profile timezones, and failed writes produce a recoverable error. [Data model, sequence diagram and trust boundaries →](docs/architecture.md)
 
-### Assistant turn sequence
+## Evaluation rubric mapping
 
-```mermaid
-sequenceDiagram
-  actor User
-  participant UI as Web UI
-  participant Agent as Assistant core
-  participant Guard as Input guardrail
-  participant Engine as Decision engine
-  participant Tool as Mock response tool
-  User->>UI: Send care coordination message
-  UI->>Agent: Validated request
-  Agent->>Guard: Sanitize and check input
-  alt Input is rejected
-    Guard-->>Agent: Structured rejection
-    Agent-->>UI: Safe recovery message
-  else Input is accepted
-    Guard-->>Engine: Sanitized message
-    Engine-->>Agent: Intent and urgency
-    Agent->>Tool: Select deterministic response
-    Tool-->>Agent: Safe response
-    Agent-->>UI: Redacted structured result
-  end
-```
+| Rubric in `INSTRUCTIONS.md` | Inspectable implementation/evidence |
+|---|---|
+| Vertical and persona | Elder-first workflow, clinical boundaries, `src/core/persona.ts`, [PAL instructions](docs/tavus.md) |
+| Decision-making | `src/core/decision_engine.ts`, named-dose dialogue, bounded snooze policy |
+| Dynamic context | `web/src/features/taus/tavusContext.ts`; profile-specific name, medicines, dose history and appointments |
+| Layered architecture | `src/core`, `src/guardrails`, `src/tools`, `shared`, `web`; [architecture](docs/architecture.md) |
+| Input/output safety | Zod schemas, prompt-injection rejection, PII filtering, role-based Firestore rules |
+| State and memory | Bounded session memory + Firestore profiles; no cross-profile video memory |
+| Offline evaluation | Default mock mode, explicit fictional-data demo, deterministic tests without secrets |
+| Testing and coverage | `npm run check`; ≥85% gates over core, shared schemas and Taus context/dialogue—not whole-app coverage |
+| Accessibility | Semantic landmarks, large text, keyboard controls, modal focus handling, status/error regions; full WCAG audit not claimed |
+| Resource efficiency | No model call for deterministic decisions; lazy video loading; Sarvam cache, request/day limits and no retries |
+| Repository hygiene | Public `main`, CI, ignored secrets/builds, tracked-size/secret-pattern check |
 
-## 6. Repository structure
+See [evaluation evidence, edge cases and remaining verification](docs/evaluation.md) for the measured results and their scope. No evaluation score is guaranteed.
+
+## Repository map
 
 ```text
-Sanjeevani/
-├── .env.example                 # Safe local configuration template
-├── .env.emulator.example        # Local Firebase Emulator Suite settings
-├── .gitignore
-├── README.md
-├── INSTRUCTIONS.md              # Hackathon constraints and coding rules
-├── package.json                # npm workspaces and developer commands
-├── firebase.json               # Hosting, Functions, Firestore, and emulator configuration
-├── firestore.rules             # Membership and role-based access rules
-├── firestore.indexes.json
-├── src/                         # Assistant core package
-│   ├── config.ts
-│   ├── core/
-│   │   ├── agent.ts
-│   │   ├── decision_engine.ts
-│   │   ├── memory.ts
-│   │   └── persona.ts
-│   ├── guardrails/
-│   │   ├── input_validator.ts
-│   │   └── output_filter.ts
-│   ├── models/schemas.ts
-│   └── tools/
-│       ├── base.ts
-│       └── mock_tools.ts
-├── shared/
-│   ├── schemas/                 # Validated medication and appointment inputs
-│   └── types/                   # Cross-workspace care data models
-├── web/
-│   ├── src/lib/                 # Firebase, App Check, and notification setup
-│   ├── src/features/auth/       # Email sign-in and profile callable clients
-│   ├── src/features/profiles/   # Member profile lookup
-│   ├── src/features/medications/# Schedule and dose-log access
-│   ├── src/features/appointments/# Appointment access
-│   ├── src/features/verification/# Firebase AI Logic label comparison
-│   └── public/                  # App icon
-├── functions/
-│   ├── src/auth/                # Verified accounts, invitations, roles and Taus actions
-│   ├── src/reminders/           # Dose generation and email/push reminders
-│   └── src/lib/                 # Structured logging and scheduling helpers
-└── tests/                       # Vitest test suites (decision engine, guardrails, agent, schemas, config)
+src/                 Assistant orchestration, decisions, guardrails and memory
+shared/              Domain schemas, types and policies
+web/src/             Bilingual React app and Firebase client services
+web/server/          Local-only Sarvam secret proxy
+web/public/images/   Small real Tavus avatar asset
+functions/           Experimental server workflows (not deployed)
+tests/               Offline behavioral, safety, schema and render tests
+scripts/             Screenshot capture, repository check, emulator prototype
+ docs/               Architecture, evaluation, deployment and Tavus setup
+.github/workflows/   Automated verification on main
 ```
 
-## 7. Quickstart
+## Safety and honest limits
 
-Requires Node.js 22.12 or newer. Firebase Emulator Suite and deployment commands also require Firebase CLI 15 or newer (`npm install -g firebase-tools`, then `firebase login`). From the repository root, install dependencies and start the local app:
+- This app does not diagnose, prescribe, change treatment or verify ingestion. Emergency guidance directs users to human help.
+- Voice recognition can mishear. Named-dose confirmation and visible controls remain essential.
+- User-entered instructions and images are not clinician-verified. The video model's outputs are not passed through the local deterministic output filter.
+- Closing/reloading loses foreground snoozes. There is no unattended reminder guarantee.
+- Firebase billing remains disabled. Optional Tavus/Sarvam usage has separate provider costs and quotas.
+- Live multi-account security testing, full browser accessibility review and successful Tavus speech verification remain outstanding.
 
-```bash
-npm install && npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173). The starter page runs without credentials. `MOCK_MODE` and `VITE_MOCK_MODE` default to `true`; no Firebase project or model key is needed for the local demo.
-
-To exercise Auth, Firestore, Functions, and Hosting locally, copy `.env.emulator.example` to `.env`, then run the emulators in one terminal:
-
-```bash
-npm run emulators
-```
-
-Start `npm run dev` in another terminal. The emulator project uses the demo ID `demo-sanjeevani`; it does not deploy to or modify a live Firebase project.
-
-### Developer commands
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start the Vite development server |
-| `npm run test:emulator` | Verify callable relationships and security rules locally (requires Java) |
-| `npm run emulators` | Start Firebase Auth, Firestore, and Functions emulators |
-| `npm run typecheck` | Type-check configured workspaces |
-| `npm run lint` | Run ESLint |
-| `npm run build` | Type-check and build the web and Functions workspaces |
-| `npm run deploy` | Build and deploy Hosting, Firestore rules/indexes, and Functions to the selected Firebase project |
-| `npm run deploy:hosting` | Build and deploy only the React app to Firebase Hosting |
-
-### Website and languages
-
-The homepage uses a lime, cream, and dark-olive layout inspired by the supplied reference, with an explicitly labeled sample care summary and direct links into the care workspace. Its artwork is CSS-only: no new dependencies, remote fonts, photos, or translation API calls.
-
-Use **EN / हिन्दी** in the header. The device remembers the language when local storage is available. Navigation, forms, medication controls, appointment preparation, account/profile screens, and emergency guidance are translated. Dates and speech use the selected locale (Hindi speech depends on an installed device voice). Care records and medicine names remain exactly as entered. The offline assistant recognizes common Hindi emergency, missed-dose, and appointment phrases; it is still a deterministic assistant, not a general translator.
-
-### Frontend feature walkthrough
-
-- **Medication Schedule:** view each dose in Morning (05:00–11:59), Afternoon (12:00–16:59), Evening (17:00–20:59), or Night. Times and dates use the active profile’s timezone. Marking one dose taken does not mark the medication’s other doses. The seven-day calendar distinguishes taken, missed, skipped, pending, and absent records.
-- **Edit schedules:** the All Medication Schedules section includes paused and non-daily schedules. Edit preserves multiple times, selected weekdays, interval length, date limits, notes, and active status. Family members can view medications. Elders, caretakers and doctors can manage schedules; only elders and caretakers can log doses.
-- **Appointments:** enter clinician-provided preparation instructions one per line. Checkmarks are saved only on this device and scoped to account, profile, and appointment; they are not shared with other members. Never infer fasting requirements from an appointment type. Calendar exports preserve the appointment instant and assume a clearly labeled 30-minute duration. The `.ics` download works offline; Google Calendar and directions links need internet.
-- **Emergency help:** use the always-visible SOS control or an urgent chat prompt to open the drawer. Country-labeled phone links open the device dialer. The care-circle SMS/push broadcast is always a simulation, including in Firebase mode; it does not contact anyone or dispatch help. The default demo lists Priya and Rohan.
-- **Account and Care Circle:** register and verify your email, then create an elder profile for yourself or someone you care for. Connect elder, caretaker, family and doctor accounts through expiring email-bound invitations. Membership is checked by the server. The first caretaker connected to a self-created elder profile takes over access administration, protecting reminder contacts from elder changes.
-- **Offline demo:** choose a clearly labeled sample account, including a doctor. No password is collected. Changes remain in memory and reset on reload. The role switcher is demo-only. Demo reminder contacts are session-local and never send messages.
-
-
-Live dose logs are created by the existing hourly backend generator. New schedules show **Awaiting server schedule** until the corresponding log exists; use **Refresh doses** to load it. The UI updates the actual dose-log ID and does not attempt forbidden client-side log creation. Live load/write failures are shown explicitly; demo records are never substituted into a signed-in profile.
-
-Dialogs use native modal focus containment and restore the initiating control’s focus. Controls have visible focus states and at least 44px targets, with responsive layout, large-text mode, and live status/error regions. Automated rendering checks do not replace browser keyboard/screen-reader review or live Firebase integration testing.
-
-## 8. Environment variables
-
-Use `.env.example` as the template. Keep real values in an ignored `.env` file or a managed secret store.
-
-| Variable | Purpose |
-|---|---|
-| `MOCK_MODE` | Deterministic local mode; defaults to `true` |
-| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` | Firebase web app configuration |
-| `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` | reCAPTCHA Enterprise site key for live App Check |
-| `VITE_FIREBASE_VAPID_KEY` | Public web-push key from Firebase project settings |
-| `VITE_USE_FIREBASE_EMULATORS` | Connect the web SDK to local Firebase emulators |
-| `VITE_MOCK_MODE` | Keep the browser app offline by default; set to `false` for Firebase services |
-| `functions/.env` → `GRACE_MINUTES` | Missed-dose grace period; defaults to `30` and accepts `5`–`240` |
-
-
-## 9. Connect a Firebase project
-
-The emulator project is separate from a live project. After choosing your Firebase project:
-
-1. Run `firebase use --add` and select the project. This writes the non-secret project ID to `.firebaserc`.
-2. Register a Firebase Web App and place its public config values in `.env` as `VITE_FIREBASE_*`.
-3. In **Authentication → Sign-in method**, enable Email/Password. The app sends verification emails; configure its email template and authorized domains.
-4. Create a Cloud Firestore database in the project. `npm run deploy` publishes the security rules and indexes.
-5. AI Logic is optional for the separate package-label service. The website’s label screen is a simulation; Taus does not require an LLM key.
-6. Register the Web App in **App Check** with a reCAPTCHA Enterprise site key. Put it in `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, allow the production domain, and enable enforcement after checking request metrics.
-7. In **Cloud Messaging → Web Push certificates**, create a VAPID key pair and put its public key in `VITE_FIREBASE_VAPID_KEY`.
-9. Run `npm run deploy` to build and deploy Hosting, Functions, Firestore rules, and indexes.
-
-Scheduled reminders use Cloud Scheduler. Confirm the required APIs and billing setup for the selected project before deploying scheduled functions; see the [Firebase scheduling guide](https://firebase.google.com/docs/functions/schedule-functions).
-
-## 10. Safety, privacy, and access control
-
-- The assistant does not diagnose or provide directions to start, stop, or change medication.
-- Potential emergency language receives a deterministic urgent response that directs the user to local emergency services and nearby human support.
-- Input validation rejects common instruction override attempts; output filtering redacts common email, phone, payment-card, and identification-number patterns.
-- Session memory is in-process and temporary. It is not durable storage and must not be treated as a medical record.
-- Passcodes and attempt records are server-only; profile, medication, dose, appointment, and token rules require membership and role checks. Validate rules in the emulator before using real health data.
-- Pill-strip images are sent to Firebase AI Logic only after the caller confirms consent. Gemini reads visible package text; it does not identify pills, verify contents, or confirm that a dose is safe.
-- Never put API keys, access codes, or patient details in source control or logs.
-
-## 11. Assumptions and edge cases
-
-- The first release is a coordination aid for an elder and their trusted care circle; it is not a medical device.
-- A message can be ambiguous, incomplete, adversarial, or too long. Requests are length-limited and common prompt override patterns are rejected.
-- Possible emergencies take priority over routine scheduling intents. The system should route users to local emergency help rather than attempt to assess or treat symptoms.
-- A missed-dose question must be referred to the medication instructions or a pharmacist/care team; the assistant does not decide whether to take a dose late.
-- Time zone, daylight-saving, duplicate reminder, network failure, and retry behavior must be covered before scheduled reminders are enabled.
-- Personally identifying information may appear in text; responses are filtered, and future persistence must use explicit access controls and data minimization.
-
-## 12. Evaluation rubric mapping
-
-| Rubric area from `INSTRUCTIONS.md` | Sanjeevani foundation |
-|---|---|
-| Vertical and persona | Elder-first care coordination scope and explicit safety limits |
-| Decision-making | Typed intent and urgency state classification in `src/core/decision_engine.ts` |
-| Layered architecture | UI, agent orchestration, decision engine, guardrails, tools, and memory are separate modules |
-| Security guardrails | Zod input schemas, prompt-injection checks, PII redaction, membership and role-based Firestore rules |
-| Offline mode | Deterministic mock response tool; no model key is required |
-| Accessibility | Semantic landmarks, responsive layout, readable sizing, and visible focus treatment in the starter UI |
-| Developer experience | npm workspaces, strict TypeScript, `.env.example`, and ignored build/cache artifacts |
-
-## 13. Next implementation milestones
-
-1. Complete end-to-end Firebase emulator and live-service verification of account and membership flows.
-2. Add appointment editing and shared checklist completion if required.
-4. Expand backend reminder and Firestore security-rule coverage; measure the 85% coverage target.
-5. Complete keyboard, screen-reader, and live-service reviews.
-
-## 14. Limitations
-
-Sanjeevani is a care coordination project, not a medical device. Firebase integrations require project configuration and have not been deployed or verified against a live Firebase project. Gemini can misread a label and cannot verify pill identity or safety; a caregiver or pharmacist must confirm any result. Health information is sensitive; review privacy, security, and applicable compliance requirements before using real patient data.
-
-## 15. Team
-
-**Team:** _[Team name]_
-
-| Name | Role |
-|---|---|
-| _[Name]_ | _[Role]_ |
-
-Built for the PromptWars × Catalyst challenge.
+**Maintainer:** [rashiyaom](https://github.com/rashiyaom). Built for the PromptWars × Catalyst challenge.

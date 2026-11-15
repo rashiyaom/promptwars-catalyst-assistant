@@ -680,3 +680,10 @@ summary { cursor: pointer; padding-block: 12px; font-weight: 600; }summary:focus
 @media (max-width: 600px) { .auth-page { grid-template-columns: 1fr; }.auth-illustration { max-height: 180px; }.auth-story { padding: 24px; } }
 .tavus-frame { width: 100%; height: 600px; margin-top: 20px; }
 @media (max-width: 600px) { .tavus-frame { height: 650px; } }
+
+.tavus-intro { display: grid; grid-template-columns: 200px 1fr; gap: 2rem; align-items: center; }
+.tavus-intro img { width: 200px; height: 220px; object-fit: cover; border-radius: 20px; background: #e3f66a; }
+.tavus-card { border-top: 5px solid #dff36b; }
+.tavus-card .consent-row { margin: 1.5rem 0; }
+.tavus-frame { margin-top: 1.5rem; min-height: 320px; }
+@media (max-width: 640px) { .tavus-intro { grid-template-columns: 1fr; gap: 1rem; } .tavus-intro img { width: 100%; height: 230px; object-position: center 25%; } }

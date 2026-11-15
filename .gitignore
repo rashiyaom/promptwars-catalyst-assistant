@@ -68,3 +68,8 @@ Thumbs.db
 *.tar
 *.iso
 *.bin
+
+# Small curated product screenshots; never patient uploads.
+!docs/images/*.jpg
+!web/public/images/taus-avatar.jpg
+coverage/

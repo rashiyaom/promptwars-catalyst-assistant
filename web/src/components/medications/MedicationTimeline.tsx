@@ -1,3 +1,4 @@
+import { FREE_PLAN } from '../../lib/plan.js';
 import { useLanguage } from '../../i18n/LanguageContext.js';
 import React, { useState } from 'react';
 import type { Medication } from '@sanjeevani/shared/types/medication';
@@ -31,7 +32,7 @@ export function MedicationTimeline({ onEdit }: { readonly onEdit: (medication: M
     </section>
     <p role="status" className="feedback">{feedback}</p>
     {error && <p role="alert" className="error-message">{error}</p>}
-    {!isDemo && <div className="action-row"><p>{t("New schedules become recordable when the server generates their dose logs.")}</p><button className="btn-skip" disabled={busy !== null} onClick={() => void perform('refresh', refreshData, t("Dose history refreshed."))}>{t("Refresh doses")}</button></div>}
+    {!isDemo && <div className="action-row"><p>{t(FREE_PLAN ? "Recorded dose history." : "New schedules become recordable when the server generates their dose logs.")}</p><button className="btn-skip" disabled={busy !== null} onClick={() => void perform('refresh', refreshData, t("Dose history refreshed."))}>{t("Refresh doses")}</button></div>}
     {DAY_PERIODS.map((period) => {
       const doses = todayDoses.filter((dose) => dayPeriod(dose.scheduledFor, activeProfile.timezone) === period);
       return <section className="timeline-period" key={period} aria-label={`${t(period)} ${t('doses')}`}>
@@ -41,7 +42,7 @@ export function MedicationTimeline({ onEdit }: { readonly onEdit: (medication: M
           const medication = medications.find((med) => med.id === dose.medicationId);
           if (!medication) return null;
           const time = new Intl.DateTimeFormat(locale, { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(dose.scheduledFor));
-          const recordable = isDemo || doseLogs.some((log) => log.id === dose.id);
+          const recordable = isDemo || FREE_PLAN || doseLogs.some((log) => log.id === dose.id);
           return <article className="med-item" key={dose.id}>
             <div className="med-info"><time dateTime={dose.scheduledFor} className="dose-time">{time}</time><h3>{medication.name} — {medication.dosage}</h3><p>{medication.notes}</p></div>
             <div className="med-actions">

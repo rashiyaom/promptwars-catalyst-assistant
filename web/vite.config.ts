@@ -1,12 +1,16 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
+import { sarvamMiddleware } from './server/sarvam.ts';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const webRoot = fileURLToPath(new URL('.', import.meta.url));
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), { name: 'local-sarvam-speech', configureServer(server) {
+    const env = loadEnv(mode, resolve(webRoot, '..'), 'SARVAM_');
+    server.middlewares.use(sarvamMiddleware(env.SARVAM_API_KEY ?? '', resolve(webRoot, '../.env.sarvam-budget.json')));
+  } }],
   envDir: '..',
   build: {
     rollupOptions: {
@@ -21,4 +25,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

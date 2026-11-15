@@ -9,16 +9,15 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
+import { doc, setDoc } from 'firebase/firestore';
 import { getFirebaseClients } from '../../lib/firebase.js';
 
 /** Sign in an existing care-circle member with their email and password. */
 export async function signInMember(email: string, password: string): Promise<void> {
   const clients = getFirebaseClients();
   if (!clients) throw new Error('Sign-in is unavailable in offline demo mode.');
-  const credential = await signInWithEmailAndPassword(clients.auth, email.trim(), password);
-  // Unverified accounts stay signed in only to resend/complete email verification.
-  if (credential.user.emailVerified) await ensureCareAccount();
+  await signInWithEmailAndPassword(clients.auth, email.trim(), password);
+  // CareProvider synchronizes the account once the verified session is ready.
 }
 
 /** Create a Firebase Authentication account for a new care-circle member. */
@@ -62,7 +61,12 @@ export function subscribeToAuth(callback: (user: User | null) => void): () => vo
 export async function ensureCareAccount(): Promise<void> {
   const clients = getFirebaseClients();
   if (!clients) return;
-  await httpsCallable(clients.functions, 'ensureCareAccount')({});
+  const user = clients.auth.currentUser;
+  if (!user?.emailVerified) return;
+  // The cached ID token may predate verification in another tab. Firestore checks
+  // its email_verified claim, not User.emailVerified. Refresh before any reads.
+  await user.getIdToken(true);
+  await setDoc(doc(clients.db, 'users', user.uid), { uid: user.uid, email: user.email, displayName: user.displayName ?? '' });
 }
 
 export async function resendVerification(): Promise<void> {

@@ -7,7 +7,7 @@ import { navigate, pendingInvitation } from '../../app/routes.js';
 /** One account per person. Roles are assigned by invitations, never selected during registration. */
 export function AuthPage(): React.JSX.Element {
   const { t, language } = useLanguage();
-  const { user, isDemo, signOutCurrentMember } = useCare();
+  const { user, isDemo, signOutCurrentMember, currentMember, signInAsMember } = useCare();
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState('');
   const [busy, setBusy] = useState(false); const [feedback, setFeedback] = useState(''); const [error, setError] = useState('');
@@ -22,7 +22,7 @@ export function AuthPage(): React.JSX.Element {
     <div className="auth-panel">
       <p className="eyebrow">{t('WELCOME TO YOUR CARE SPACE')}</p><h2>{t(user && !user.emailVerified ? 'Verify your email' : mode === 'register' ? 'Create account' : mode === 'reset' ? 'Reset password' : 'Sign in')}</h2>
       {error && <p className="error-message" role="alert">{error}</p>}{feedback && <p role="status">{feedback}</p>}
-      {isDemo && <p role="status">{t('Account service is not connected yet. Please try again after setup.')}</p>}
+      {isDemo && <div><p>{language === 'hi' ? 'ऑफ़लाइन डेमो में केवल काल्पनिक डेटा है।' : 'Offline evaluation uses fictional data only.'}</p><button type="button" className="btn-skip" onClick={() => { if (currentMember) { signInAsMember(currentMember); navigate('assistant'); } }}>{language === 'hi' ? 'ऑफ़लाइन डेमो खोलें' : 'Explore offline demo'}</button></div>}
       {user && !user.emailVerified ? <div className="care-form"><p>{t('Check your email to verify your account.')} {user.email}</p><button className="send-button" disabled={busy} onClick={() => void perform(async () => { if (await auth.refreshVerification()) done(); else setFeedback(t('Email not verified yet. Open the verification link first.')); })}>{t('I have verified my email')}</button><button className="btn-skip" disabled={busy} onClick={() => void perform(async () => { await auth.resendVerification(); setFeedback(t('Verification email sent.')); })}>{t('Resend verification')}</button><button className="text-button" disabled={busy} onClick={() => void perform(signOutCurrentMember)}>{t('Use a different account')}</button></div> : <form className="care-form" onSubmit={submit}>
         {mode === 'register' && <label htmlFor="account-name">{t('Your name')}<input id="account-name" required maxLength={100} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label>}
         <label htmlFor="account-email">{t('Email')}<input id="account-email" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>

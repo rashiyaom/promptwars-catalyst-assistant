@@ -1,3 +1,5 @@
+import { speak, stopSpeech, isSpeaking } from '../../lib/speech.js';
+import { FREE_PLAN } from '../../lib/plan.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { decide, runAgent, validateInput } from '@sanjeevani/core';
 import type { DoseLog } from '@sanjeevani/shared/types/doseLog';
@@ -30,25 +32,25 @@ export function TausAgent({ onEmergency }: { readonly onEmergency: () => void })
   const due = todayDoses.filter((dose) => (dose.status === 'pending' || dose.status === 'missed') && Date.parse(dose.scheduledFor) <= Date.now());
   const target = todayDoses.find((dose) => dose.id === askedId) ?? due[0];
   const medication = medications.find((item) => item.id === target?.medicationId);
-  const canRecord = Boolean(target && canLogDose && (isDemo || doseLogs.some((dose) => dose.id === target.id)));
+  const canRecord = Boolean(target && canLogDose && (isDemo || FREE_PLAN || doseLogs.some((dose) => dose.id === target.id)));
   useEffect(() => { setImageFailed(false); }, [medication?.imageUrl]);
   useEffect(() => {
     mounted.current = true;
     const fetchAlerts = () => { void listAlertDeliveries(activeProfile.id).then((value) => { if (mounted.current) { setDeliveries(value); setAlertError(false); } }).catch(() => { if (mounted.current) setAlertError(true); }); };
     fetchAlerts();
-    const interval = window.setInterval(() => { if (document.hidden) return; fetchAlerts(); if (!isDemo && !locked.current) void refresh.current(); }, 300_000);
-    return () => { mounted.current = false; handsFree.current = false; speakingVersion.current += 1; recognition.current?.abort(); window.clearInterval(interval); if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+    const interval = window.setInterval(() => { if (document.hidden) return; fetchAlerts(); if (!isDemo && !FREE_PLAN && !locked.current) void refresh.current(); }, 300_000);
+    return () => { mounted.current = false; handsFree.current = false; speakingVersion.current += 1; recognition.current?.abort(); window.clearInterval(interval); stopSpeech(); };
   }, [activeProfile.id, isDemo]);
+  useEffect(() => { handsFree.current = false; setVoiceOn(false); recognition.current?.abort(); stopSpeech(); }, [locale]);
   const say = (text: string) => {
     if (!mounted.current) return;
     setMessage(text); recognition.current?.abort();
-    if (!handsFree.current || !('speechSynthesis' in window)) return;
+    if (!handsFree.current) return;
     const version = ++speakingVersion.current;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text); utterance.lang = locale; utterance.rate = 0.85;
-    utterance.onend = () => { if (mounted.current && handsFree.current && version === speakingVersion.current) listenAgain.current(); };
-    utterance.onerror = (event) => { if (mounted.current && version === speakingVersion.current && !['canceled', 'interrupted'].includes(event.error)) { handsFree.current = false; setVoiceOn(false); } };
-    window.speechSynthesis.speak(utterance);
+    void speak(text, locale,
+      () => { if (mounted.current && handsFree.current && version === speakingVersion.current) listenAgain.current(); },
+      () => { if (mounted.current && version === speakingVersion.current) { handsFree.current = false; setVoiceOn(false); } },
+    );
   };
   const ask = () => {
     const dose = due.find((item) => !item.nextReminderAt || Date.parse(item.nextReminderAt) <= Date.now());
@@ -73,7 +75,7 @@ export function TausAgent({ onEmergency }: { readonly onEmergency: () => void })
     locked.current = true; setBusy(true);
     try {
       if (answer === 'taken') { await logDose(dose, 'taken'); setAskedId(null); say(t('Recorded as taken. Thank you. Say next to review another medicine.')); }
-      else { const next = await snoozeDose(dose); setAskedId(null); say(t('I saved a follow-up for {0}. Your caregiver alert deadline stays unchanged.', new Intl.DateTimeFormat(locale, { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(next)))); }
+      else { const next = await snoozeDose(dose); setAskedId(null); say(t('I saved a follow-up for {0} on this screen. Keep this page open; no background email is sent.', new Intl.DateTimeFormat(locale, { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(next)))); }
     } catch (err) { say(language === 'en' && err instanceof Error ? err.message : t('I could not save that response. Please check with your care circle.')); }
     finally { locked.current = false; if (mounted.current) setBusy(false); }
   };
@@ -98,7 +100,7 @@ export function TausAgent({ onEmergency }: { readonly onEmergency: () => void })
     say(t(result.message));
   };
   listenAgain.current = () => {
-    if (!handsFree.current || !mounted.current || window.speechSynthesis?.speaking) return;
+    if (!handsFree.current || !mounted.current || isSpeaking()) return;
     const Constructor = (window as SpeechWindow).SpeechRecognition ?? (window as SpeechWindow).webkitSpeechRecognition;
     if (!Constructor) { handsFree.current = false; setVoiceOn(false); say(t('Voice recognition is unavailable in this browser. You can type or use the large buttons.')); return; }
     const instance = new Constructor(); recognition.current = instance; instance.lang = locale; instance.continuous = false; instance.interimResults = false;
@@ -109,7 +111,7 @@ export function TausAgent({ onEmergency }: { readonly onEmergency: () => void })
   };
   return <section className="card taus-agent" aria-labelledby="taus-title"><div className="section-heading"><div><p className="eyebrow">{t('YOUR PERSONAL CARE COMPANION')}</p><h2 id="taus-title">{t('Namaste, I’m Taus.')}</h2><p>{activeProfile.elderName} · {t('Only this care profile is in context.')}</p></div><span className={`taus-orb${listening ? ' listening' : ''}`} aria-hidden="true">✳</span></div>
     <div className="taus-message" role="status" aria-live="polite">{message || t('Talk to me about your medicines and appointments. We will take it one step at a time.')}</div>
-    <div className="action-row"><button className="send-button" disabled={busy} onClick={() => { if (voiceOn) { handsFree.current = false; setVoiceOn(false); speakingVersion.current += 1; recognition.current?.abort(); window.speechSynthesis?.cancel(); } else { handsFree.current = true; setVoiceOn(true); ask(); } }}>{t(voiceOn ? 'Stop voice conversation' : 'Start voice conversation')}</button><button className="btn-skip" disabled={busy} onClick={ask}>{t('Review my next medicine')}</button>{voiceOn && <button className="btn-skip" disabled={busy || listening} onClick={() => listenAgain.current()}>{t('Listen again')}</button>}</div>
+    <div className="action-row"><button className="send-button" disabled={busy} onClick={() => { if (voiceOn) { handsFree.current = false; setVoiceOn(false); speakingVersion.current += 1; recognition.current?.abort(); stopSpeech(); } else { handsFree.current = true; setVoiceOn(true); ask(); } }}>{t(voiceOn ? 'Stop voice conversation' : 'Start voice conversation')}</button><button className="btn-skip" disabled={busy} onClick={ask}>{t('Review my next medicine')}</button>{voiceOn && <button className="btn-skip" disabled={busy || listening} onClick={() => listenAgain.current()}>{t('Listen again')}</button>}</div>
     <p className="small-note">{t('Microphone access is optional. Your browser may use an online speech service. Buttons and typing work without it.')}</p>
     {target && medication && <article className="taus-dose"><div className="medicine-photo">{medication.imageUrl && !imageFailed ? <img src={medication.imageUrl} referrerPolicy="no-referrer" alt={t('Caregiver-provided photo of {0}', medication.name)} onError={() => setImageFailed(true)} /> : <span aria-hidden="true">✚</span>}</div><div><span className="eyebrow">{t('CONFIRM THIS DOSE')}</span><h3>{medication.name} · {medication.dosage}</h3><p>{new Intl.DateTimeFormat(locale, { timeZone: activeProfile.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(target.scheduledFor))}</p><p>{medication.notes}</p><p className="small-note">{t('Use the name and prescribed instructions. A picture does not verify a medicine.')}</p><div className="action-row"><button className="btn-taken" disabled={busy || !canRecord} onClick={() => void respond('taken', target)}>{t('Yes, I took this dose')}</button><button className="btn-skip" disabled={busy || !canRecord || target.status !== 'pending'} onClick={() => void respond('later', target)}>{t('Not yet · remind me')}</button></div>{!canRecord && <p>{t('Dose recording needs elder/caretaker access and a generated dose log.')}</p>}</div></article>}
     {transcript && <p className="small-note">{t('You said:')} {transcript}</p>}

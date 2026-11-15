@@ -4,7 +4,7 @@ import { redactPersonalInformation } from '../guardrails/output_filter.js';
 import { decide } from './decision_engine.js';
 import { SessionMemory } from './memory.js';
 import { MockAssistantTool } from '../tools/mock_tools.js';
-import type { AgentRequest } from '../models/schemas.js';
+import { agentRequestSchema, type AgentRequest } from '../models/schemas.js';
 
 /** Structured result returned by one agent turn. */
 export interface AgentResponse {
@@ -20,7 +20,9 @@ const mockTool = new MockAssistantTool();
 
 /** Run validation, deterministic decision-making, offline response, and redaction. */
 export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
-  const validation = validateInput(request.message);
+  const parsed = agentRequestSchema.safeParse(request);
+  if (!parsed.success) return { success: false, message: 'Please rephrase your message and try again.', error: { code: 'INPUT_REJECTED', message: 'Invalid session or message.' } };
+  const validation = validateInput(parsed.data.message);
   if (!validation.accepted) {
     return {
       success: false,

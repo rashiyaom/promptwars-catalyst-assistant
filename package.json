@@ -16,20 +16,31 @@
     "dev": "npm run dev --workspace @sanjeevani/web",
     "emulators": "firebase emulators:start --project demo-sanjeevani --only auth,firestore,functions,hosting",
     "build": "npm run typecheck && npm run build --workspace @sanjeevani/web && npm run build --workspace @sanjeevani/functions",
-    "deploy": "npm run build && firebase deploy",
+    "deploy": "npm run build --workspace @sanjeevani/web && firebase deploy --only hosting,firestore",
     "deploy:hosting": "npm run build --workspace @sanjeevani/web && firebase deploy --only hosting",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
     "lint": "eslint .",
-    "test:emulator": "npm run build --workspace @sanjeevani/functions && firebase emulators:exec --project demo-sanjeevani --only auth,firestore,functions \"node scripts/verify-emulator.mjs\""
+    "test:emulator": "npm run build --workspace @sanjeevani/functions && firebase emulators:exec --project demo-sanjeevani --only auth,firestore,functions \"node scripts/verify-emulator.mjs\"",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run build --workspace @sanjeevani/web",
+    "demo": "VITE_MOCK_MODE=true npm run dev"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^10.15.0",
+    "playwright": "^1.65.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.8"
+    }
   }
 }

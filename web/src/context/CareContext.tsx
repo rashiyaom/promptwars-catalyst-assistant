@@ -1,8 +1,9 @@
+import { speak } from '../lib/speech.js';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../i18n/LanguageContext.js';
 import { carePermissions } from '@sanjeevani/shared/types/access';
 import type { ElderProfileInput } from '@sanjeevani/shared/schemas/profile';
-import * as alertService from '../features/profiles/notificationSettingsService.js';
+import { FREE_PLAN } from '../lib/plan.js';
 import { nextSnoozeTime } from '@sanjeevani/shared/types/taus';
 import type { User } from 'firebase/auth';
 import type { Medication } from '@sanjeevani/shared/types/medication';
@@ -147,15 +148,17 @@ function CareSession({ children, user, authReady }: { readonly children: React.R
     if (!isLiveConnected) return;
     setLoading(true);
     setDataError(null);
+    let stage = 'account setup';
     try {
       await ensureCareAccount();
+      stage = 'profile list';
       const found = await profService.listMyCareProfiles();
       setProfiles(found);
       const selected = found.find((profile) => profile.id === (preferredId ?? dataRef.current.activeProfile.id)) ?? found[0];
       if (selected) await switchProfile(selected.id);
       else setData(EMPTY_DATA);
     } catch (error) {
-      setDataError(error instanceof Error ? error.message : 'Could not load care profiles. Please retry.');
+      setDataError(error instanceof Error ? `${stage}: ${error.message}` : 'Could not load care profiles. Please retry.');
     } finally { setLoading(false); }
   };
 
@@ -191,7 +194,7 @@ function CareSession({ children, user, authReady }: { readonly children: React.R
   const logDose = async (dose: DoseLog, status: 'taken' | 'skipped') => {
     if (!canLogDose) throw new Error('Only the elder or caretaker may record doses.');
     if (dose.status !== 'pending' && dose.status !== 'missed') throw new Error('This dose has already been recorded.');
-    if (!isDemo) await medService.logDose(activeProfile.id, dose.id, status);
+    if (!isDemo) await medService.logDose(activeProfile.id, dose.id, status, dose);
     const logged: DoseLog = { ...dose, status, loggedAt: new Date().toISOString(), loggedBy: user?.uid ?? 'demo-member' };
     changeData(activeProfile.id, (previous) => ({ ...previous, doseLogs: [...previous.doseLogs.filter((item) => item.id !== dose.id), logged] }));
   };
@@ -222,22 +225,15 @@ function CareSession({ children, user, authReady }: { readonly children: React.R
   const snoozeDose = async (dose: DoseLog): Promise<string> => {
     if (!canLogDose) throw new Error('Only the elder or caretaker may record doses.');
     let nextReminderAt: string;
-    if (isDemo) {
+    if (isDemo || FREE_PLAN) {
       const next = nextSnoozeTime(Date.parse(dose.scheduledFor), activeProfile.graceMinutes, dose.snoozeCount ?? 0, dose.status, Date.now());
       if (next === null) throw new Error('This dose needs care-circle follow-up; its escalation deadline cannot be delayed.');
       nextReminderAt = new Date(next).toISOString();
-    } else nextReminderAt = (await alertService.snoozeDose(activeProfile.id, dose.id)).nextReminderAt;
+    } else throw new Error('Follow-up unavailable.');
     changeData(activeProfile.id, (previous) => ({ ...previous, doseLogs: [...previous.doseLogs.filter((log) => log.id !== dose.id), { ...dose, nextReminderAt, snoozeCount: (dose.snoozeCount ?? 0) + 1 }] }));
     return nextReminderAt;
   };
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = locale;
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  };
+  const speakText = (text: string) => { void speak(text, locale); };
 
   const signInAsMember = (member: CareMember) => {
     if (!isDemo) return;

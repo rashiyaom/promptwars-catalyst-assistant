@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { getFirebaseClients } from '../../lib/firebase.js';
+import { elderProfileInputSchema } from '@sanjeevani/shared/schemas/profile';
 import type { ElderProfileInput, InvitationInput, AcceptInvitationInput } from '@sanjeevani/shared/schemas/profile';
 import type { CareInvitation } from '@sanjeevani/shared/types/profile';
 import { isMemberRole } from '@sanjeevani/shared/types/access';
@@ -11,7 +12,19 @@ async function call<Input, Output>(name: string, input: Input): Promise<Output> 
   if (!clients) throw new Error('This action needs a connected Firebase account.');
   return (await httpsCallable<Input, Output>(clients.functions, name)(input)).data;
 }
-export const createCareProfile = (input: ElderProfileInput) => call<ElderProfileInput, { profileId: string }>('createCareProfile', input);
+export async function createCareProfile(input: ElderProfileInput): Promise<{ profileId: string }> {
+  const clients = getFirebaseClients(); const user = clients?.auth.currentUser;
+  if (!clients || !user?.emailVerified) throw new Error('Verify your email first.');
+  const parsed = elderProfileInputSchema.parse(input); const profileId = crypto.randomUUID();
+  const role = parsed.relationship === 'self' ? 'elder' : 'caretaker';
+  const profile = { ...parsed, ownerUid: user.uid, createdBy: user.uid, elderUid: role === 'elder' ? user.uid : null, graceMinutes: 30, accessMode: 'personal' };
+  const batch = writeBatch(clients.db);
+  batch.set(doc(clients.db, 'profiles', profileId), profile);
+  batch.set(doc(clients.db, 'profiles', profileId, 'members', user.uid), { uid: user.uid, role, email: user.email, displayName: user.displayName ?? '', joinedAt: Timestamp.now() });
+  batch.set(doc(clients.db, 'users', user.uid, 'profiles', profileId), { profileId, elderName: parsed.elderName, timezone: parsed.timezone, graceMinutes: 30, ownerUid: user.uid, role });
+  await batch.commit(); return { profileId };
+}
+
 export const createCareInvitation = (input: InvitationInput) => call<InvitationInput, AcceptInvitationInput & { expiresAt: string }>('createCareInvitation', input);
 export const acceptCareInvitation = (input: AcceptInvitationInput) => call<AcceptInvitationInput, { profileId: string }>('acceptCareInvitation', input);
 export const removeCareMember = (profileId: string, memberUid: string) => call('removeCareMember', { profileId, memberUid });

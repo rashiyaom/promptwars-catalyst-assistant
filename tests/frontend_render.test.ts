@@ -25,9 +25,9 @@ function renderInDemo(child: React.ReactNode): string {
 describe('Offline frontend rendering', () => {
   it('keeps demo sign-in explicit and hides contact editors from the elder', () => {
     const html = renderInDemo(React.createElement(React.Fragment, null, React.createElement(AuthPage), React.createElement(ReminderSettings)));
-    expect(html).toContain('Account service is not connected yet.');
+    expect(html).toContain('Explore offline demo');
     expect(html).toContain('doctor');
-    expect(html).toContain('Elders and doctors cannot edit these destinations.');
+    expect(html).toContain('Automatic email delivery and background reminders are unavailable');
     expect(html).toContain('type="password"');
     expect(html).not.toContain('Rameshwar');
     expect(html).not.toContain('type="tel"');
